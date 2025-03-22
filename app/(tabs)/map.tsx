@@ -755,17 +755,13 @@ export default function MapScreen() {
         loadingEnabled={true}
         customMapStyle={isDarkMode ? darkMapStyle : []}
       >
+        {/* Map markers */}
         {userMarker && (
           <Marker
             coordinate={userMarker}
             title="Your Location"
-            description={
-              isLocationBeingShared()
-                ? "Being shared with friends"
-                : "This is your current location"
-            }
+            description="This is your current location"
             anchor={{ x: 0.5, y: 0.5 }}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             onPress={() => {
               setTappedMarker({
                 latitude: userMarker.latitude,
@@ -777,66 +773,36 @@ export default function MapScreen() {
           >
             <View
               style={{
-                width: 60,
-                height: 60,
-                alignItems: "center",
+                width: 32,
+                height: 32,
+                backgroundColor: "#4285F4",
+                borderRadius: 22,
+                borderWidth: 3,
+                borderColor: "#fff",
                 justifyContent: "center",
+                alignItems: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
               }}
             >
-              <Animated.View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  backgroundColor: "rgba(66, 133, 244, 0.2)",
-                  borderWidth: 2,
-                  borderColor: "rgba(66, 133, 244, 0.5)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transform: [{ scale: pulseAnim }],
-                }}
-              >
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: "#4285F4",
-                    borderWidth: 2,
-                    borderColor: "#ffffff",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {isRunning ? (
-                    <MaterialIcons
-                      name="directions-run"
-                      size={20}
-                      color="#fff"
-                    />
-                  ) : (
-                    <MaterialIcons
-                      name="accessibility"
-                      size={20}
-                      color="#fff"
-                    />
-                  )}
-                </View>
-              </Animated.View>
+              <MaterialIcons name="directions-run" size={22} color="#fff" />
               {isLocationBeingShared() && (
                 <View
                   style={{
                     position: "absolute",
-                    top: 0,
-                    right: 0,
+                    top: -6,
+                    right: -6,
                     width: 16,
                     height: 16,
                     borderRadius: 8,
                     backgroundColor: "#00C853",
-                    borderWidth: 1,
                     borderColor: "#fff",
-                    alignItems: "center",
+                    borderWidth: 1.5,
                     justifyContent: "center",
+                    alignItems: "center",
                   }}
                 >
                   <Ionicons name="share-social" size={8} color="#fff" />
@@ -852,78 +818,46 @@ export default function MapScreen() {
             title="Selected Location"
             description="Tap for options"
             anchor={{ x: 0.5, y: 0.5 }}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             <View
               style={{
-                width: 60,
-                height: 60,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Animated.View
+              <View
                 style={{
-                  width: 48,
-                  height: 48,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transform: [{ translateY: dropAnim }],
+                  width: 20,
+                  height: 20,
+                  borderRadius: 20,
+                  backgroundColor: "#FF6B6B",
+                  borderColor: "#fff",
+                  borderWidth: 2.5,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 2,
+                  elevation: 3,
                 }}
-              >
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: "#FF6B6B",
-                    borderWidth: 2,
-                    borderColor: "#ffffff",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                />
-
-                <View
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 0,
-                    backgroundColor: "#FF6B6B",
-                    borderRightWidth: 2,
-                    borderBottomWidth: 2,
-                    borderColor: "#ffffff",
-                    transform: [{ rotate: "45deg" }],
-                    marginTop: -14,
-                  }}
-                />
-
-                <Animated.View
-                  style={{
-                    width: 20,
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: "rgba(0, 0, 0, 0.4)",
-                    marginTop: 2,
-                    opacity: shadowAnim,
-                    transform: [
-                      {
-                        scaleX: shadowAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.5, 1.5],
-                        }),
-                      },
-                    ],
-                  }}
-                />
-              </Animated.View>
+              />
+              <View
+                style={{
+                  width: 18,
+                  height: 18,
+                  backgroundColor: "#FF6B6B",
+                  transform: [{ rotate: "45deg" }],
+                  marginTop: -9,
+                  borderBottomWidth: 2.5,
+                  borderRightWidth: 2.5,
+                  borderColor: "#fff",
+                }}
+              />
             </View>
           </Marker>
         )}
 
-        {/* Render shared locations from friends */}
+        {/* Friend locations */}
         {sharedLocations.map((location) => {
-          // Create initials from email
           const initials = location.sender_email
             ? location.sender_email.split("@")[0].substring(0, 2).toUpperCase()
             : "??";
@@ -936,15 +870,9 @@ export default function MapScreen() {
                 longitude: location.longitude,
               }}
               title={`${location.sender_email}'s Location`}
-              description={`${
-                location.location_name
-              } - Last updated: ${new Date(
-                location.updated_at
-              ).toLocaleString()}`}
+              description={`${location.location_name || "Shared Location"}`}
               anchor={{ x: 0.5, y: 0.5 }}
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-              onPress={(e) => {
-                // Set as tapped marker
+              onPress={() => {
                 setTappedMarker({
                   latitude: location.latitude,
                   longitude: location.longitude,
@@ -952,112 +880,61 @@ export default function MapScreen() {
                   sharedLocationData: location,
                 });
 
-                // Animate to the region for friend markers
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion(
-                    {
-                      latitude: location.latitude,
-                      longitude: location.longitude,
-                      latitudeDelta: 0.005,
-                      longitudeDelta: 0.005,
-                    },
-                    300
-                  );
-                }
+                mapRef.current?.animateToRegion(
+                  {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  },
+                  300
+                );
               }}
             >
               <View
                 style={{
-                  width: 60,
-                  height: 60,
-                  alignItems: "center",
+                  width: 40,
+                  height: 40,
+                  backgroundColor: "#00C853",
+                  borderRadius: 20,
+                  borderColor: "#fff",
+                  borderWidth: 2.5,
                   justifyContent: "center",
+                  alignItems: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 2,
+                  elevation: 3,
                 }}
               >
-                <Animated.View
+                <Text
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                    backgroundColor: "rgba(0, 200, 83, 0.2)",
-                    borderWidth: 2,
-                    borderColor: "rgba(0, 200, 83, 0.5)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transform: [
-                      {
-                        translateY: floatAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, -4],
-                        }),
-                      },
-                    ],
+                    color: "#fff",
+                    fontSize: 16,
+                    fontWeight: "bold",
                   }}
                 >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      backgroundColor: "#00C853",
-                      borderWidth: 2,
-                      borderColor: "#ffffff",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#ffffff",
-                        fontSize: 16,
-                        fontWeight: "bold",
-                      }}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                    >
-                      {initials}
-                    </Text>
-                  </View>
-                </Animated.View>
-
-                <Animated.View
+                  {initials}
+                </Text>
+                <View
                   style={{
                     position: "absolute",
-                    bottom: 4,
-                    right: 4,
+                    bottom: -6,
+                    right: -6,
                     width: 16,
                     height: 16,
                     borderRadius: 8,
                     backgroundColor: "#FF9800",
-                    borderWidth: 1,
                     borderColor: "#fff",
-                    alignItems: "center",
+                    borderWidth: 1.5,
                     justifyContent: "center",
-                    transform: [{ scale: rippleAnim }],
+                    alignItems: "center",
                   }}
                 >
-                  <Ionicons name="time-outline" size={8} color="#fff" />
-                </Animated.View>
-              </View>
-              <Callout tooltip style={{ width: 280 }}>
-                <View
-                  style={[
-                    styles.calloutContainer,
-                    isDarkMode ? styles.darkCallout : styles.lightCallout,
-                  ]}
-                >
-                  <ThemedText style={styles.calloutTitle}>
-                    {location.sender_email}'s Location
-                  </ThemedText>
-                  <ThemedText style={styles.calloutText}>
-                    {location.location_name}
-                  </ThemedText>
-                  <ThemedText style={styles.calloutText}>
-                    Last updated:{" "}
-                    {new Date(location.updated_at).toLocaleString()}
-                  </ThemedText>
+                  <Ionicons name="location" size={8} color="#fff" />
                 </View>
-              </Callout>
+              </View>
             </Marker>
           );
         })}
