@@ -17,7 +17,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -43,8 +42,8 @@ export default function SignUpScreen() {
     try {
       setLoading(true);
 
-      // Sign up with Supabase Auth
-      const { data, error } = await signUp(email, password);
+      // Sign up with Supabase Auth and create profile
+      const { data, error } = await signUp(email, password, name);
 
       if (error) {
         console.log("Sign-up error:", error);
@@ -52,25 +51,6 @@ export default function SignUpScreen() {
       }
 
       if (data?.user) {
-        try {
-          // Add user profile data to a profiles table
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .insert({
-              id: data.user.id,
-              full_name: name,
-              email: email,
-            });
-
-          // Catch profile error but don't let it stop the signup process
-          if (profileError) {
-            console.log("Profile error:", profileError);
-          }
-        } catch (profileErr) {
-          console.log("Error creating profile:", profileErr);
-          // Continue anyway - profile creation is secondary
-        }
-
         // Skip automatic sign-in attempt and always show verification message
         Alert.alert(
           "Account Created",

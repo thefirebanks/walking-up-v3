@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Image,
   StyleSheet,
@@ -14,10 +14,19 @@ import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useAuth } from "@/context/AuthContext";
+import AddFriend from "@/components/AddFriend";
+import FriendRequests from "@/components/FriendRequests";
+import OutgoingFriendRequests from "@/components/OutgoingFriendRequests";
+import FriendsList from "@/components/FriendsList";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleRefresh = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
 
   const handleLocationPing = () => {
     Alert.alert(
@@ -96,6 +105,24 @@ export default function ProfileScreen() {
           </ThemedView>
         </ThemedView>
 
+        {/* Add Friends Component */}
+        <AddFriend onFriendAdded={handleRefresh} />
+
+        {/* Friend Requests Component */}
+        <FriendRequests
+          onRequestHandled={handleRefresh}
+          refreshTrigger={refreshTrigger}
+        />
+
+        {/* Outgoing Friend Requests Component */}
+        <OutgoingFriendRequests
+          refreshTrigger={refreshTrigger}
+          onRequestCanceled={handleRefresh}
+        />
+
+        {/* Friends List Component */}
+        <FriendsList refreshTrigger={refreshTrigger} />
+
         <ThemedView style={styles.cardContainer}>
           <ThemedText type="subtitle">Share Your Location</ThemedText>
           <ThemedView style={styles.card}>
@@ -108,27 +135,6 @@ export default function ProfileScreen() {
               onPress={handleLocationPing}
             >
               <Text style={styles.buttonText}>Share My Location</Text>
-            </TouchableOpacity>
-          </ThemedView>
-        </ThemedView>
-
-        <ThemedView style={styles.cardContainer}>
-          <ThemedText type="subtitle">My Friends</ThemedText>
-          <ThemedView style={styles.card}>
-            <ThemedText>
-              You haven't added any friends yet. Start by adding friends using
-              their email address.
-            </ThemedText>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Friend management will be available in the next update!"
-                )
-              }
-            >
-              <Text style={styles.buttonText}>Add Friends</Text>
             </TouchableOpacity>
           </ThemedView>
         </ThemedView>
