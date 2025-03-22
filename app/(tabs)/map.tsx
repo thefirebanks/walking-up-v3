@@ -167,6 +167,7 @@ export default function MapScreen() {
     []
   );
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshSuccess, setRefreshSuccess] = useState(false);
   const [friendsImSharingWith, setFriendsImSharingWith] = useState<string[]>(
     []
   );
@@ -376,6 +377,12 @@ export default function MapScreen() {
       await loadFriends();
       await loadSharedLocations();
       await loadFriendsImSharingWith();
+
+      // Show success message briefly with updated info
+      setRefreshSuccess(true);
+      setTimeout(() => {
+        setRefreshSuccess(false);
+      }, 2000);
     } catch (error) {
       console.error("Error during refresh:", error);
     } finally {
@@ -824,43 +831,86 @@ export default function MapScreen() {
         </View>
       )}
 
+      {/* Toast container - positioned absolutely at the bottom of the screen */}
+      <View
+        style={[
+          styles.toastContainer,
+          tappedMarker ? { bottom: 240 } : { bottom: 100 },
+        ]}
+      >
+        {/* Toast message when refreshing */}
+        {refreshing && (
+          <View
+            style={[
+              styles.toast,
+              isDarkMode ? styles.darkToast : styles.lightToast,
+            ]}
+          >
+            <ThemedText style={styles.toastText}>
+              Refreshing friend locations...
+            </ThemedText>
+          </View>
+        )}
+
+        {/* Success message toast */}
+        {!refreshing && refreshSuccess && (
+          <View style={[styles.toast, styles.successToast]}>
+            <Ionicons
+              name="checkmark-circle"
+              size={16}
+              color="#00C853"
+              style={styles.successIcon}
+            />
+            <ThemedText style={styles.successToastText}>
+              {sharedLocations.length > 0
+                ? `Found ${sharedLocations.length} friend location${
+                    sharedLocations.length !== 1 ? "s" : ""
+                  }!`
+                : "Friend locations updated!"}
+            </ThemedText>
+          </View>
+        )}
+      </View>
+
       {/* Control buttons */}
       <View style={styles.controlsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.controlButton,
-            isDarkMode ? styles.darkControlButton : styles.lightControlButton,
-          ]}
-          onPress={centerOnUserLocation}
-        >
-          <Ionicons
-            name="locate"
-            size={24}
-            color={isDarkMode ? "#fff" : "#000"}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.controlButton,
-            isDarkMode ? styles.darkControlButton : styles.lightControlButton,
-          ]}
-          onPress={handleRefresh}
-          disabled={refreshing}
-        >
-          <Ionicons
-            name="refresh"
-            size={24}
-            color={isDarkMode ? "#fff" : "#000"}
-          />
-          {refreshing && (
-            <ActivityIndicator
-              size="small"
+        <View style={styles.controlButtons}>
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              isDarkMode ? styles.darkControlButton : styles.lightControlButton,
+            ]}
+            onPress={centerOnUserLocation}
+          >
+            <Ionicons
+              name="locate"
+              size={24}
               color={isDarkMode ? "#fff" : "#000"}
-              style={styles.refreshIndicator}
             />
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              isDarkMode ? styles.darkControlButton : styles.lightControlButton,
+            ]}
+            onPress={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <ActivityIndicator
+                size="small"
+                color={isDarkMode ? "#fff" : "#000"}
+              />
+            ) : (
+              <Ionicons
+                name="refresh"
+                size={24}
+                color={isDarkMode ? "#fff" : "#000"}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Friends selection modal */}
@@ -968,6 +1018,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 20,
     right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  controlButtons: {
     flexDirection: "column",
     alignItems: "center",
   },
@@ -1263,5 +1317,58 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginVertical: 4,
     backgroundColor: "#FF6B6B",
+  },
+  toastContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+  toast: {
+    width: 220,
+    padding: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  darkToast: {
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+  },
+  lightToast: {
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  successToast: {
+    backgroundColor: "rgba(0, 200, 83, 0.3)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 200, 83, 0.5)",
+  },
+  successIcon: {
+    marginRight: 5,
+  },
+  successToastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
