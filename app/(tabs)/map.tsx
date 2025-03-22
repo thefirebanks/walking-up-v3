@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Image,
   useColorScheme,
+  Animated,
+  Easing,
 } from "react-native";
 import MapView, {
   Marker,
@@ -178,6 +180,87 @@ export default function MapScreen() {
     longitudeDelta: 0.0421,
   });
   const [showSharingDetailsModal, setShowSharingDetailsModal] = useState(false);
+
+  // Animation values for pulsing effect
+  const pulseAnim = useRef(new Animated.Value(0.8)).current;
+  // Animation value for dropping pin - increased height for more dramatic effect
+  const dropAnim = useRef(new Animated.Value(-100)).current;
+  // Animation for bounce effect after dropping
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+  // Animation for friend markers floating effect
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  // Animation for timestamp ripple effect
+  const rippleAnim = useRef(new Animated.Value(0.6)).current;
+  // Animation for switching between running and squatting
+  const [isRunning, setIsRunning] = useState(true);
+  // Animation for shadow effect on drop
+  const shadowAnim = useRef(new Animated.Value(0)).current;
+
+  // Set up the animations
+  useEffect(() => {
+    // Set up the pulsing animation for user marker
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.8,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Set up the floating animation for friend markers
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Set up the ripple animation for timestamp indicators
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(rippleAnim, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rippleAnim, {
+          toValue: 0.6,
+          duration: 800,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Set up an interval to switch between running and squatting icons
+    const iconInterval = setInterval(() => {
+      setIsRunning((prev) => !prev);
+    }, 2000); // Switch every 2 seconds
+
+    return () => {
+      clearInterval(iconInterval);
+    };
+  }, []);
 
   // Load user's location and set up a real-time subscription to location changes
   useEffect(() => {
@@ -467,7 +550,7 @@ export default function MapScreen() {
     }
   };
 
-  // Handle map tap to place a marker
+  // Handle map tap to place a marker with enhanced drop animation
   const handleMapPress = (event: any) => {
     // Extract the coordinates from the event
     const { coordinate } = event.nativeEvent;
@@ -494,8 +577,42 @@ export default function MapScreen() {
       });
     }
 
-    // Only animate to the region if it's not the user's current location marker
+    // Animate the dropping pin with a more dramatic effect
     if (!isUserMarker) {
+      // Reset animations
+      dropAnim.setValue(-150); // Increase drop height for more dramatic effect
+      bounceAnim.setValue(0);
+      shadowAnim.setValue(0);
+
+      // Sequence of animations for a more dynamic drop
+      Animated.sequence([
+        // First drop quickly from above
+        Animated.timing(dropAnim, {
+          toValue: 0,
+          duration: 400, // Slightly longer duration for more dramatic effect
+          easing: Easing.cubic,
+          useNativeDriver: true,
+        }),
+        // Then add a little bounce effect
+        Animated.timing(bounceAnim, {
+          toValue: 1,
+          duration: 300, // Slightly longer bounce
+          easing: Easing.bounce,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Animate the shadow growing when the pin lands
+      Animated.sequence([
+        Animated.delay(300), // Wait for pin to almost land
+        Animated.spring(shadowAnim, {
+          toValue: 1,
+          tension: 60,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
       // Small delay to ensure the marker is rendered before showing callout
       setTimeout(() => {
         if (mapRef.current) {
@@ -647,22 +764,82 @@ export default function MapScreen() {
                 ? "Being shared with friends"
                 : "This is your current location"
             }
-            pinColor="#4285F4"
+            anchor={{ x: 0.5, y: 0.5 }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             onPress={() => {
-              // When the user marker is pressed directly, set it as the tapped marker
               setTappedMarker({
                 latitude: userMarker.latitude,
                 longitude: userMarker.longitude,
                 type: "user",
               });
-              // No need to animate here as per user's request
+              setIsRunning((prev) => !prev);
             }}
           >
-            <View style={styles.userMarker}>
-              <View style={styles.userMarkerDot} />
+            <View
+              style={{
+                width: 60,
+                height: 60,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Animated.View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: "rgba(66, 133, 244, 0.2)",
+                  borderWidth: 2,
+                  borderColor: "rgba(66, 133, 244, 0.5)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transform: [{ scale: pulseAnim }],
+                }}
+              >
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: "#4285F4",
+                    borderWidth: 2,
+                    borderColor: "#ffffff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {isRunning ? (
+                    <MaterialIcons
+                      name="directions-run"
+                      size={20}
+                      color="#fff"
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="accessibility"
+                      size={20}
+                      color="#fff"
+                    />
+                  )}
+                </View>
+              </Animated.View>
               {isLocationBeingShared() && (
-                <View style={styles.sharingIndicator}>
-                  <Ionicons name="share-social" size={12} color="#fff" />
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: "#00C853",
+                    borderWidth: 1,
+                    borderColor: "#fff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="share-social" size={8} color="#fff" />
                 </View>
               )}
             </View>
@@ -674,12 +851,83 @@ export default function MapScreen() {
             coordinate={tappedMarker}
             title="Selected Location"
             description="Tap for options"
-            pinColor="#FF6B6B"
-          />
+            anchor={{ x: 0.5, y: 0.5 }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <View
+              style={{
+                width: 60,
+                height: 60,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Animated.View
+                style={{
+                  width: 48,
+                  height: 48,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transform: [{ translateY: dropAnim }],
+                }}
+              >
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: "#FF6B6B",
+                    borderWidth: 2,
+                    borderColor: "#ffffff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                />
+
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 0,
+                    backgroundColor: "#FF6B6B",
+                    borderRightWidth: 2,
+                    borderBottomWidth: 2,
+                    borderColor: "#ffffff",
+                    transform: [{ rotate: "45deg" }],
+                    marginTop: -14,
+                  }}
+                />
+
+                <Animated.View
+                  style={{
+                    width: 20,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: "rgba(0, 0, 0, 0.4)",
+                    marginTop: 2,
+                    opacity: shadowAnim,
+                    transform: [
+                      {
+                        scaleX: shadowAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.5, 1.5],
+                        }),
+                      },
+                    ],
+                  }}
+                />
+              </Animated.View>
+            </View>
+          </Marker>
         )}
 
         {/* Render shared locations from friends */}
         {sharedLocations.map((location) => {
+          // Create initials from email
+          const initials = location.sender_email
+            ? location.sender_email.split("@")[0].substring(0, 2).toUpperCase()
+            : "??";
+
           return (
             <Marker
               key={location.sender_id}
@@ -693,6 +941,8 @@ export default function MapScreen() {
               } - Last updated: ${new Date(
                 location.updated_at
               ).toLocaleString()}`}
+              anchor={{ x: 0.5, y: 0.5 }}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               onPress={(e) => {
                 // Set as tapped marker
                 setTappedMarker({
@@ -716,9 +966,78 @@ export default function MapScreen() {
                 }
               }}
             >
-              {/* Use the same style as user marker but with green color */}
-              <View style={styles.friendLocationMarker}>
-                <View style={styles.friendLocationMarkerDot} />
+              <View
+                style={{
+                  width: 60,
+                  height: 60,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Animated.View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: "rgba(0, 200, 83, 0.2)",
+                    borderWidth: 2,
+                    borderColor: "rgba(0, 200, 83, 0.5)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transform: [
+                      {
+                        translateY: floatAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -4],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: "#00C853",
+                      borderWidth: 2,
+                      borderColor: "#ffffff",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#ffffff",
+                        fontSize: 16,
+                        fontWeight: "bold",
+                      }}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {initials}
+                    </Text>
+                  </View>
+                </Animated.View>
+
+                <Animated.View
+                  style={{
+                    position: "absolute",
+                    bottom: 4,
+                    right: 4,
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: "#FF9800",
+                    borderWidth: 1,
+                    borderColor: "#fff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transform: [{ scale: rippleAnim }],
+                  }}
+                >
+                  <Ionicons name="time-outline" size={8} color="#fff" />
+                </Animated.View>
               </View>
               <Callout tooltip style={{ width: 280 }}>
                 <View
@@ -1257,21 +1576,184 @@ const styles = StyleSheet.create({
   refreshIndicator: {
     position: "absolute",
   },
-  userMarker: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(66, 133, 244, 0.3)",
+  userMarkerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 100,
+    height: 100,
+    padding: 20,
+    overflow: "visible",
+  },
+  userMarkerPulse: {
+    position: "absolute",
+    backgroundColor: "rgba(66, 133, 244, 0.2)",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 2,
-    borderColor: "#4285F4",
+    borderColor: "rgba(66, 133, 244, 0.5)",
+  },
+  userMarker: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(66, 133, 244, 0.9)",
+    borderWidth: 3,
+    borderColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  userMarkerInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#4285F4",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "visible",
   },
   userMarkerDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: "#4285F4",
+  },
+  sharingIndicator: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: "#00C853",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+    zIndex: 3,
+  },
+  selectedMarkerContainer: {
+    width: 100,
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    overflow: "visible",
+  },
+  selectedMarkerHead: {
+    position: "absolute",
+    top: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FF6B6B",
+    borderWidth: 3,
+    borderColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 2,
+  },
+  selectedMarkerTail: {
+    position: "absolute",
+    top: 40,
+    width: 30,
+    height: 30,
+    backgroundColor: "#FF6B6B",
+    transform: [{ rotate: "45deg" }],
+    borderRightWidth: 3,
+    borderBottomWidth: 3,
+    borderColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 5,
+    zIndex: 1,
+  },
+  selectedMarkerShadow: {
+    width: 25,
+    height: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 5,
+    transform: [{ scaleX: 2 }],
+    zIndex: 0,
+  },
+  friendMarkerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 100,
+    height: 100,
+    padding: 20,
+    overflow: "visible",
+  },
+  friendMarkerHalo: {
+    position: "absolute",
+    backgroundColor: "rgba(0, 200, 83, 0.2)",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "rgba(0, 200, 83, 0.5)",
+  },
+  friendLocationMarker: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0, 200, 83, 0.9)",
+    borderWidth: 3,
+    borderColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    overflow: "visible",
+  },
+  friendLocationMarkerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00C853",
+  },
+  friendInitials: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  friendTimestamp: {
+    position: "absolute",
+    bottom: 10,
+    right: 12,
+    backgroundColor: "#FF9800",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+    zIndex: 3,
   },
   modalContainer: {
     flex: 1,
@@ -1458,22 +1940,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginVertical: 4,
   },
-  friendLocationMarker: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(0, 200, 83, 0.3)",
-    borderWidth: 2,
-    borderColor: "#00C853",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  friendLocationMarkerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#00C853",
-  },
   sharingStatusContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -1499,19 +1965,6 @@ const styles = StyleSheet.create({
   },
   calloutButtonWarning: {
     backgroundColor: "#FF9800",
-  },
-  sharingIndicator: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#00C853",
-    borderRadius: 8,
-    width: 16,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#fff",
   },
   currentSharingContainer: {
     marginBottom: 20,
