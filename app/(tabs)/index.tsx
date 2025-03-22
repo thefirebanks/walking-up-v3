@@ -7,7 +7,7 @@ import {
   Text,
   Alert,
 } from "react-native";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -15,9 +15,10 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const router = useRouter();
 
   const handleMapPress = () => {
-    Alert.alert("Coming Soon", "Map and more features coming soon!");
+    router.navigate("/map");
   };
 
   return (

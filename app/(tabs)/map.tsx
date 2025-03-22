@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -7,18 +7,36 @@ import {
   Dimensions,
   Platform,
   Text,
+  Modal,
+  FlatList,
+  ActivityIndicator,
+  Image,
+  useColorScheme,
 } from "react-native";
 import MapView, {
   Marker,
+  Callout,
   PROVIDER_DEFAULT,
   UrlTile,
   MapStyleElement,
 } from "react-native-maps";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
-import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "react-native";
+import { Ionicons, FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
+import { getFriends, Friend } from "@/lib/friends";
+import {
+  SharedLocationView,
+  updateMyLocation,
+  shareLocationWithFriend,
+  getLocationsSharedWithMe,
+  stopSharingWithFriend,
+  getFriendsImSharingWith,
+} from "@/lib/locations";
+import { Colors } from "@/constants/Colors";
+import { supabase } from "@/lib/supabase";
+import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
 
 // Dark mode map style
 const darkMapStyle: MapStyleElement[] = [
@@ -126,6 +144,7 @@ export default function MapScreen() {
   const isDarkMode = colorScheme === "dark";
 
   const mapRef = useRef<MapView>(null);
+
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null
   );
@@ -138,8 +157,16 @@ export default function MapScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
-
-  // Default to a central location (will be overridden by user location when available)
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [sharedLocations, setSharedLocations] = useState<SharedLocationView[]>(
+    []
+  );
+  const [refreshing, setRefreshing] = useState(false);
+  const [friendsImSharingWith, setFriendsImSharingWith] = useState<string[]>(
+    []
+  );
   const [mapRegion, setMapRegion] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -147,48 +174,222 @@ export default function MapScreen() {
     longitudeDelta: 0.0421,
   });
 
+  // Load user's location and set up a real-time subscription to location changes
   useEffect(() => {
-    // Function to request location permissions and get initial location
-    const getLocationPermission = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-
-        if (status !== "granted") {
-          setErrorMsg("Permission to access location was denied");
-          return;
-        }
-
-        // Get the current position
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        setLocation(currentLocation);
-
-        // Update map region based on user's location
-        const newRegion = {
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        };
-
-        setMapRegion(newRegion);
-        setUserMarker({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-        });
-      } catch (error) {
-        console.error("Error getting location:", error);
-        setErrorMsg("Error getting location. Please try again.");
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setErrorMsg("Permission to access location was denied");
+        return;
       }
-    };
 
-    // Only try to get location if the user is logged in
+      // Get the initial location
+      let initialLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      setLocation(initialLocation);
+
+      // Set the user marker
+      if (initialLocation) {
+        setUserMarker({
+          latitude: initialLocation.coords.latitude,
+          longitude: initialLocation.coords.longitude,
+        });
+
+        // Update my location in the database
+        await updateMyLocation(
+          initialLocation.coords.latitude,
+          initialLocation.coords.longitude
+        );
+      }
+
+      // Watch for location changes
+      const locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 10, // update every 10 meters
+          timeInterval: 5000, // update every 5 seconds
+        },
+        async (newLocation) => {
+          setLocation(newLocation);
+          if (newLocation) {
+            setUserMarker({
+              latitude: newLocation.coords.latitude,
+              longitude: newLocation.coords.longitude,
+            });
+
+            // Update my location in the database when it changes
+            await updateMyLocation(
+              newLocation.coords.latitude,
+              newLocation.coords.longitude
+            );
+          }
+        }
+      );
+
+      // Clean up the location subscription when the component unmounts
+      return () => {
+        locationSubscription.remove();
+      };
+    })();
+  }, []);
+
+  // Load friends and shared locations
+  useEffect(() => {
     if (user) {
-      getLocationPermission();
+      loadFriends();
+      loadSharedLocations();
+      loadFriendsImSharingWith();
+
+      // Set up a subscription for real-time updates
+      const locationSharesSubscription = supabase
+        .channel("location_shares_changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "location_shares" },
+          (payload) => {
+            loadSharedLocations();
+            loadFriendsImSharingWith();
+          }
+        )
+        .subscribe();
+
+      const userLocationsSubscription = supabase
+        .channel("user_locations_changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "user_locations" },
+          (payload) => {
+            loadSharedLocations();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        locationSharesSubscription.unsubscribe();
+        userLocationsSubscription.unsubscribe();
+      };
     }
   }, [user]);
+
+  // Load the user's friends
+  const loadFriends = async () => {
+    if (!user) return;
+
+    setLoadingFriends(true);
+    try {
+      const friendsList = await getFriends();
+      setFriends(friendsList);
+    } catch (error) {
+      console.error("Error loading friends:", error);
+      Alert.alert("Error", "Failed to load friends list");
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+
+  // Load locations shared with the current user
+  const loadSharedLocations = async () => {
+    if (!user) return;
+
+    try {
+      const locations = await getLocationsSharedWithMe();
+      setSharedLocations(locations);
+    } catch (error) {
+      console.error("Error loading shared locations:", error);
+    }
+  };
+
+  // Load the list of friends I'm sharing my location with
+  const loadFriendsImSharingWith = async () => {
+    if (!user) return;
+
+    try {
+      const friendIds = await getFriendsImSharingWith();
+      setFriendsImSharingWith(friendIds);
+    } catch (error) {
+      console.error("Error loading friends I'm sharing with:", error);
+    }
+  };
+
+  // Share the current location with the selected friend
+  const shareLocationWithSelectedFriend = async (friend: Friend) => {
+    if (!user) {
+      Alert.alert("Error", "You must be logged in to share your location");
+      return;
+    }
+
+    try {
+      await shareLocationWithFriend(friend.friend_id);
+
+      Alert.alert(
+        "Location Shared",
+        `Your location is now being shared with ${friend.friend_name}`,
+        [{ text: "OK" }]
+      );
+
+      setShowFriendsModal(false);
+      loadFriendsImSharingWith();
+    } catch (error) {
+      console.error("Error sharing location:", error);
+      Alert.alert("Error", "Failed to share location");
+    }
+  };
+
+  // Stop sharing location with a friend
+  const handleStopSharing = async (friendId: string) => {
+    try {
+      await stopSharingWithFriend(friendId);
+      loadFriendsImSharingWith();
+      Alert.alert("Success", "Stopped sharing your location with this friend");
+    } catch (error) {
+      console.error("Error stopping location sharing:", error);
+      Alert.alert("Error", "Failed to stop location sharing");
+    }
+  };
+
+  // Clear the tapped marker
+  const clearTappedMarker = () => {
+    setTappedMarker(null);
+  };
+
+  // Handle the refresh action to reload friends and shared locations
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadFriends();
+      await loadSharedLocations();
+      await loadFriendsImSharingWith();
+    } catch (error) {
+      console.error("Error during refresh:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user]);
+
+  // Render a friend item in the modal list
+  const renderFriendItem = ({ item }: { item: Friend }) => {
+    const isSharing = friendsImSharingWith.includes(item.friend_id);
+
+    return (
+      <TouchableOpacity
+        style={styles.friendItem}
+        onPress={() => shareLocationWithSelectedFriend(item)}
+      >
+        <ThemedText style={styles.friendItemText}>
+          {item.friend_name}
+        </ThemedText>
+        {isSharing && (
+          <TouchableOpacity
+            style={styles.stopSharingButton}
+            onPress={() => handleStopSharing(item.friend_id)}
+          >
+            <ThemedText style={styles.stopSharingText}>Stop Sharing</ThemedText>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   // Function to center the map on user's current location
   const centerOnUserLocation = async () => {
@@ -218,7 +419,7 @@ export default function MapScreen() {
 
       setLocation(currentLocation);
 
-      // Create the new region object
+      // Create a new region object
       const newRegion = {
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
@@ -231,6 +432,12 @@ export default function MapScreen() {
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
       });
+
+      // Update my location in the database
+      await updateMyLocation(
+        currentLocation.coords.latitude,
+        currentLocation.coords.longitude
+      );
 
       // Animate to the new region
       mapRef.current?.animateToRegion(newRegion, 1000);
@@ -253,113 +460,254 @@ export default function MapScreen() {
       latitude: coordinate.latitude,
       longitude: coordinate.longitude,
     });
+
+    // Small delay to ensure the marker is rendered before showing callout
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(
+          {
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          },
+          300
+        );
+      }
+    }, 10);
   };
 
-  // Clear the tapped marker
-  const clearTappedMarker = () => {
-    setTappedMarker(null);
+  // Function to show the share location modal
+  const showShareLocationModal = () => {
+    if (friends.length === 0) {
+      Alert.alert(
+        "No Friends",
+        "You don't have any friends to share your location with. Add friends first.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    // First, update my location at the current marker
+    if (tappedMarker) {
+      updateMyLocation(
+        tappedMarker.latitude,
+        tappedMarker.longitude,
+        "My Selected Location"
+      )
+        .then(() => {
+          setShowFriendsModal(true);
+        })
+        .catch((error) => {
+          console.error("Error updating location:", error);
+          Alert.alert("Error", "Failed to update your location");
+        });
+    } else {
+      Alert.alert("Error", "No location selected");
+    }
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        isDarkMode ? styles.darkContainer : styles.lightContainer,
-      ]}
-    >
+    <ThemedView style={styles.container}>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
 
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_DEFAULT}
         region={mapRegion}
+        provider={PROVIDER_DEFAULT}
+        onPress={handleMapPress}
         showsUserLocation={true}
         showsMyLocationButton={false}
         showsCompass={true}
-        showsScale={true}
-        showsBuildings={true}
-        showsTraffic={false}
-        showsIndoors={true}
-        customMapStyle={isDarkMode ? darkMapStyle : undefined}
-        onPress={handleMapPress}
+        loadingEnabled={true}
+        customMapStyle={isDarkMode ? darkMapStyle : []}
       >
-        {/* Tile overlay - use dark tiles for dark mode, standard tiles for light mode */}
-        <UrlTile
-          urlTemplate={
-            isDarkMode
-              ? "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
-              : "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          }
-          maximumZ={19}
-          flipY={false}
-        />
-
-        {/* User's current location marker */}
         {userMarker && (
           <Marker
             coordinate={userMarker}
-            title="You are here"
-            description="Your current location"
-            pinColor={isDarkMode ? "#A1CEDC" : "#1D3D47"}
-          />
+            title="Your Location"
+            description="This is your current location"
+            pinColor="#4285F4"
+          >
+            <View style={styles.userMarker}>
+              <View style={styles.userMarkerDot} />
+            </View>
+          </Marker>
         )}
 
-        {/* Tapped location marker */}
         {tappedMarker && (
           <Marker
             coordinate={tappedMarker}
             title="Selected Location"
-            description="Tap to interact with this location"
+            description="Tap for options"
             pinColor="#FF6B6B"
-            onCalloutPress={() => {
-              Alert.alert(
-                "Location Selected",
-                "What would you like to do with this location?",
-                [
-                  {
-                    text: "Share Location",
-                    onPress: () =>
-                      Alert.alert(
-                        "Coming Soon",
-                        "Location sharing will be available soon!"
-                      ),
-                  },
-                  {
-                    text: "Navigate Here",
-                    onPress: () =>
-                      Alert.alert(
-                        "Coming Soon",
-                        "Navigation will be available soon!"
-                      ),
-                  },
-                  {
-                    text: "Clear Marker",
-                    onPress: clearTappedMarker,
-                    style: "destructive",
-                  },
-                  {
-                    text: "Cancel",
-                    style: "cancel",
-                  },
-                ]
-              );
-            }}
           />
         )}
+
+        {/* Render shared locations from friends */}
+        {sharedLocations.map((location) => {
+          return (
+            <Marker
+              key={location.sender_id}
+              coordinate={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+              }}
+            >
+              {/* Use the same style as user marker but with green color */}
+              <View style={styles.friendLocationMarker}>
+                <View style={styles.friendLocationMarkerDot} />
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
-      {/* Current location button */}
-      <TouchableOpacity
-        style={[
-          styles.currentLocationButton,
-          isDarkMode ? styles.darkLocationButton : styles.lightLocationButton,
-        ]}
-        onPress={centerOnUserLocation}
+      {/* Bottom card for marker options */}
+      {tappedMarker && (
+        <View
+          style={[
+            styles.bottomCard,
+            isDarkMode ? styles.darkCard : styles.lightCard,
+          ]}
+        >
+          <ThemedText style={styles.cardTitle}>Selected Location</ThemedText>
+          <ThemedText style={styles.cardText}>
+            {`Latitude: ${tappedMarker.latitude.toFixed(
+              6
+            )}\nLongitude: ${tappedMarker.longitude.toFixed(6)}`}
+          </ThemedText>
+
+          <View style={styles.cardButtonContainer}>
+            <TouchableOpacity
+              style={[styles.cardButton, styles.calloutButtonPrimary]}
+              onPress={async () => {
+                await updateMyLocation(
+                  tappedMarker.latitude,
+                  tappedMarker.longitude,
+                  "My Selected Location"
+                );
+                Alert.alert("Success", "Your location has been updated!");
+              }}
+            >
+              <ThemedText style={styles.calloutButtonText}>
+                Set as My Location
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.cardButton, styles.calloutButtonSecondary]}
+              onPress={showShareLocationModal}
+            >
+              <ThemedText style={styles.calloutButtonText}>
+                Share Location
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.cardButton, styles.calloutButtonDanger]}
+              onPress={() => clearTappedMarker()}
+            >
+              <ThemedText style={styles.calloutButtonText}>
+                Deselect Marker
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Control buttons */}
+      <View style={styles.controlsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.controlButton,
+            isDarkMode ? styles.darkControlButton : styles.lightControlButton,
+          ]}
+          onPress={centerOnUserLocation}
+        >
+          <Ionicons
+            name="locate"
+            size={24}
+            color={isDarkMode ? "#fff" : "#000"}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.controlButton,
+            isDarkMode ? styles.darkControlButton : styles.lightControlButton,
+          ]}
+          onPress={handleRefresh}
+          disabled={refreshing}
+        >
+          <Ionicons
+            name="refresh"
+            size={24}
+            color={isDarkMode ? "#fff" : "#000"}
+          />
+          {refreshing && (
+            <ActivityIndicator
+              size="small"
+              color={isDarkMode ? "#fff" : "#000"}
+              style={styles.refreshIndicator}
+            />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Friends selection modal */}
+      <Modal
+        visible={showFriendsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowFriendsModal(false)}
       >
-        <Ionicons name="locate" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
-    </View>
+        <View style={styles.modalContainer}>
+          <View
+            style={[
+              styles.modalContent,
+              isDarkMode ? styles.darkModalContent : styles.lightModalContent,
+            ]}
+          >
+            <ThemedText style={styles.modalTitle}>
+              Share Your Location
+            </ThemedText>
+
+            <ThemedText style={styles.modalSubtitle}>
+              Choose friends to share your current location with:
+            </ThemedText>
+
+            {loadingFriends ? (
+              <ActivityIndicator
+                size="large"
+                color={isDarkMode ? "#A1CEDC" : "#1D3D47"}
+                style={{ marginVertical: 20 }}
+              />
+            ) : friends.length > 0 ? (
+              <FlatList
+                data={friends}
+                renderItem={renderFriendItem}
+                keyExtractor={(item) => item.friend_id}
+                contentContainerStyle={styles.friendsList}
+              />
+            ) : (
+              <ThemedText style={styles.noFriendsText}>
+                You don't have any friends yet. Add friends from the Friends
+                tab.
+              </ThemedText>
+            )}
+
+            <TouchableOpacity
+              style={styles.closeModalButton}
+              onPress={() => setShowFriendsModal(false)}
+            >
+              <ThemedText style={styles.closeModalButtonText}>Close</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </ThemedView>
   );
 }
 
@@ -367,38 +715,246 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  lightContainer: {
-    backgroundColor: "#FFFFFF",
-  },
-  darkContainer: {
-    backgroundColor: "#1D1D1D",
-  },
   map: {
     width: Dimensions.get("window").width,
     height: Dimensions.get("window").height,
   },
-  currentLocationButton: {
+  controlsContainer: {
     position: "absolute",
-    bottom: 100,
+    bottom: 20,
     right: 20,
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  controlButton: {
     width: 50,
     height: 50,
-    borderRadius: 30,
+    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
+    marginVertical: 5,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  darkLocationButton: {
-    backgroundColor: "#1D3D47",
+  darkControlButton: {
+    backgroundColor: "#333",
   },
-  lightLocationButton: {
-    backgroundColor: "#A1CEDC",
+  lightControlButton: {
+    backgroundColor: "#fff",
+  },
+  refreshIndicator: {
+    position: "absolute",
+  },
+  userMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(66, 133, 244, 0.3)",
+    borderWidth: 2,
+    borderColor: "#4285F4",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userMarkerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#4285F4",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    width: "80%",
+    maxHeight: "70%",
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  darkModalContent: {
+    backgroundColor: "#222",
+  },
+  lightModalContent: {
+    backgroundColor: "#fff",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  friendsList: {
+    paddingVertical: 10,
+  },
+  friendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+  },
+  friendItemText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  stopSharingButton: {
+    backgroundColor: "#FF6B6B",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+  },
+  stopSharingText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  noFriendsText: {
+    marginVertical: 20,
+    textAlign: "center",
+  },
+  closeModalButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: 5,
+    backgroundColor: "#1D3D47",
+    alignItems: "center",
+  },
+  closeModalButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  calloutContainer: {
+    width: 250,
+    padding: 15,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 7, // Add space for the arrow
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  calloutTitle: {
+    fontWeight: "bold",
+    fontSize: 16,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  calloutText: {
+    fontSize: 14,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  calloutButtonContainer: {
+    marginTop: 10,
+    gap: 8,
+  },
+  calloutButton: {
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 4,
+  },
+  calloutButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  calloutButtonPrimary: {
+    backgroundColor: "#4285F4",
+  },
+  calloutButtonSecondary: {
+    backgroundColor: "#FF6B6B",
+  },
+  calloutButtonDanger: {
+    backgroundColor: "#FF6B6B",
+  },
+  darkCallout: {
+    backgroundColor: "#222",
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  lightCallout: {
+    backgroundColor: "#fff",
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  bottomCard: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.27,
+    shadowRadius: 4.65,
+    elevation: 6,
+    margin: 0,
+  },
+  darkCard: {
+    backgroundColor: "#222",
+  },
+  lightCard: {
+    backgroundColor: "#fff",
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  cardText: {
+    fontSize: 14,
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  cardButtonContainer: {
+    marginTop: 15,
+    gap: 10,
+  },
+  cardButton: {
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 4,
+  },
+  friendLocationMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 200, 83, 0.3)",
+    borderWidth: 2,
+    borderColor: "#00C853",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  friendLocationMarkerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00C853",
   },
 });
