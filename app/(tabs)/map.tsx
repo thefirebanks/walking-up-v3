@@ -607,6 +607,21 @@ export default function MapScreen() {
     );
   };
 
+  // Add a function to navigate to the shared location (user marker)
+  const navigateToSharedLocation = () => {
+    if (userMarker) {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: userMarker.latitude,
+          longitude: userMarker.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        },
+        1000
+      );
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
@@ -907,40 +922,98 @@ export default function MapScreen() {
       {/* Control buttons */}
       <View style={styles.controlsContainer}>
         <View style={styles.controlButtons}>
+          {/* Show "Navigate to shared location" button only when sharing */}
+          {isLocationBeingShared() && (
+            <TouchableOpacity
+              style={[
+                styles.controlButton,
+                styles.sharedLocationButton,
+                isDarkMode
+                  ? styles.darkControlButton
+                  : styles.lightControlButton,
+              ]}
+              onPress={navigateToSharedLocation}
+              onLongPress={() =>
+                Alert.alert(
+                  "Go to Shared Location",
+                  "Navigate to the location you're currently sharing with friends."
+                )
+              }
+              delayLongPress={500}
+            >
+              <View style={styles.sharedLocationButtonContent}>
+                <Ionicons
+                  name="navigate"
+                  size={24}
+                  color={isDarkMode ? "#00C853" : "#00C853"}
+                />
+                <View style={styles.sharedLocationButtonIndicator}>
+                  <Ionicons name="share-social" size={10} color="#fff" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[
               styles.controlButton,
+              styles.currentLocationButton,
               isDarkMode ? styles.darkControlButton : styles.lightControlButton,
             ]}
             onPress={centerOnUserLocation}
+            onLongPress={() =>
+              Alert.alert(
+                "Current Device Location",
+                "Center the map on your current physical location."
+              )
+            }
+            delayLongPress={500}
           >
-            <Ionicons
-              name="locate"
-              size={24}
-              color={isDarkMode ? "#fff" : "#000"}
-            />
+            <View style={styles.currentLocationButtonContent}>
+              <Ionicons
+                name="locate"
+                size={24}
+                color={isDarkMode ? "#4285F4" : "#4285F4"}
+              />
+              <View style={styles.currentLocationButtonIndicator}>
+                <Ionicons name="location" size={10} color="#fff" />
+              </View>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.controlButton,
+              styles.refreshButton,
               isDarkMode ? styles.darkControlButton : styles.lightControlButton,
             ]}
             onPress={handleRefresh}
             disabled={refreshing}
+            onLongPress={() =>
+              Alert.alert(
+                "Refresh Friend Locations",
+                "Update the map with the latest locations shared by your friends."
+              )
+            }
+            delayLongPress={500}
           >
-            {refreshing ? (
-              <ActivityIndicator
-                size="small"
-                color={isDarkMode ? "#fff" : "#000"}
-              />
-            ) : (
-              <Ionicons
-                name="refresh"
-                size={24}
-                color={isDarkMode ? "#fff" : "#000"}
-              />
-            )}
+            <View style={styles.refreshButtonContent}>
+              {refreshing ? (
+                <ActivityIndicator
+                  size="small"
+                  color={isDarkMode ? "#FF9800" : "#FF9800"}
+                />
+              ) : (
+                <Ionicons
+                  name="refresh"
+                  size={24}
+                  color={isDarkMode ? "#FF9800" : "#FF9800"}
+                />
+              )}
+              <View style={styles.refreshButtonIndicator}>
+                <Ionicons name="people" size={10} color="#fff" />
+              </View>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -1542,5 +1615,77 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
+  },
+  sharedLocationButton: {
+    borderWidth: 2,
+    borderColor: "#00C853",
+  },
+  sharedLocationButtonContent: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  sharedLocationButtonIndicator: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#00C853",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  currentLocationButton: {
+    borderWidth: 2,
+    borderColor: "#4285F4",
+  },
+  currentLocationButtonContent: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  currentLocationButtonIndicator: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#4285F4",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  refreshButton: {
+    borderWidth: 2,
+    borderColor: "#FF9800",
+  },
+  refreshButtonContent: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  refreshButtonIndicator: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#FF9800",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
   },
 });
