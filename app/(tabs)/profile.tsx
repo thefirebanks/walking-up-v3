@@ -96,22 +96,6 @@ export default function ProfileScreen() {
           </ThemedView>
         </ThemedView>
 
-        <ThemedView style={styles.cardContainer}>
-          <ThemedText type="subtitle">Share Your Location</ThemedText>
-          <ThemedView style={styles.card}>
-            <ThemedText>
-              Share your current location with your friends and invite them to
-              join you!
-            </ThemedText>
-            <TouchableOpacity
-              style={styles.mainButton}
-              onPress={handleLocationPing}
-            >
-              <Text style={styles.buttonText}>Share My Location</Text>
-            </TouchableOpacity>
-          </ThemedView>
-        </ThemedView>
-
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
           <Text style={styles.buttonText}>Log Out</Text>
         </TouchableOpacity>
