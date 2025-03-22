@@ -597,7 +597,7 @@ export default function MapScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.cardButton, styles.calloutButtonSecondary]}
+              style={[styles.cardButton, styles.calloutButtonSuccess]}
               onPress={showShareLocationModal}
             >
               <ThemedText style={styles.calloutButtonText}>
@@ -889,6 +889,9 @@ const styles = StyleSheet.create({
   },
   calloutButtonDanger: {
     backgroundColor: "#FF6B6B",
+  },
+  calloutButtonSuccess: {
+    backgroundColor: "#00C853",
   },
   darkCallout: {
     backgroundColor: "#222",
