@@ -461,20 +461,29 @@ export default function MapScreen() {
       longitude: coordinate.longitude,
     });
 
-    // Small delay to ensure the marker is rendered before showing callout
-    setTimeout(() => {
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(
-          {
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          },
-          300
-        );
-      }
-    }, 10);
+    // Check if this is the user's current location marker
+    const isUserMarker =
+      userMarker &&
+      Math.abs(coordinate.latitude - userMarker.latitude) < 0.0000001 &&
+      Math.abs(coordinate.longitude - userMarker.longitude) < 0.0000001;
+
+    // Only animate to the region if it's not the user's current location marker
+    if (!isUserMarker) {
+      // Small delay to ensure the marker is rendered before showing callout
+      setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(
+            {
+              latitude: coordinate.latitude,
+              longitude: coordinate.longitude,
+              latitudeDelta: 0.005,
+              longitudeDelta: 0.005,
+            },
+            300
+          );
+        }
+      }, 10);
+    }
   };
 
   // Function to show the share location modal
@@ -507,6 +516,47 @@ export default function MapScreen() {
     }
   };
 
+  // Check if user is currently sharing their location
+  const isLocationBeingShared = () => {
+    return friendsImSharingWith.length > 0;
+  };
+
+  // Check if the tapped marker is the user's current location
+  const isTappedMarkerUserLocation = () => {
+    return (
+      userMarker &&
+      tappedMarker &&
+      Math.abs(tappedMarker.latitude - userMarker.latitude) < 0.0000001 &&
+      Math.abs(tappedMarker.longitude - userMarker.longitude) < 0.0000001
+    );
+  };
+
+  // Function to handle stopping all location sharing
+  const handleStopAllSharing = async () => {
+    try {
+      // Create a copy of the array since we'll be modifying it during iteration
+      const friendIds = [...friendsImSharingWith];
+
+      // Show loading indicator
+      setRefreshing(true);
+
+      // Stop sharing with each friend
+      for (const friendId of friendIds) {
+        await stopSharingWithFriend(friendId);
+      }
+
+      // Reload the list of friends we're sharing with
+      await loadFriendsImSharingWith();
+
+      Alert.alert("Success", "Stopped sharing your location with all friends");
+    } catch (error) {
+      console.error("Error stopping location sharing:", error);
+      Alert.alert("Error", "Failed to stop location sharing");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
@@ -527,11 +577,28 @@ export default function MapScreen() {
           <Marker
             coordinate={userMarker}
             title="Your Location"
-            description="This is your current location"
+            description={
+              isLocationBeingShared()
+                ? "Being shared with friends"
+                : "This is your current location"
+            }
             pinColor="#4285F4"
+            onPress={() => {
+              // When the user marker is pressed directly, set it as the tapped marker
+              setTappedMarker({
+                latitude: userMarker.latitude,
+                longitude: userMarker.longitude,
+              });
+              // No need to animate here as per user's request
+            }}
           >
             <View style={styles.userMarker}>
               <View style={styles.userMarkerDot} />
+              {isLocationBeingShared() && (
+                <View style={styles.sharingIndicator}>
+                  <Ionicons name="share-social" size={12} color="#fff" />
+                </View>
+              )}
             </View>
           </Marker>
         )}
@@ -554,11 +621,56 @@ export default function MapScreen() {
                 latitude: location.latitude,
                 longitude: location.longitude,
               }}
+              title={`${location.sender_email}'s Location`}
+              description={`${
+                location.location_name
+              } - Last updated: ${new Date(
+                location.updated_at
+              ).toLocaleString()}`}
+              onPress={(e) => {
+                // Set as tapped marker
+                setTappedMarker({
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                });
+
+                // Animate to the region for friend markers
+                if (mapRef.current) {
+                  mapRef.current.animateToRegion(
+                    {
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                      latitudeDelta: 0.005,
+                      longitudeDelta: 0.005,
+                    },
+                    300
+                  );
+                }
+              }}
             >
               {/* Use the same style as user marker but with green color */}
               <View style={styles.friendLocationMarker}>
                 <View style={styles.friendLocationMarkerDot} />
               </View>
+              <Callout tooltip style={{ width: 280 }}>
+                <View
+                  style={[
+                    styles.calloutContainer,
+                    isDarkMode ? styles.darkCallout : styles.lightCallout,
+                  ]}
+                >
+                  <ThemedText style={styles.calloutTitle}>
+                    {location.sender_email}'s Location
+                  </ThemedText>
+                  <ThemedText style={styles.calloutText}>
+                    {location.location_name}
+                  </ThemedText>
+                  <ThemedText style={styles.calloutText}>
+                    Last updated:{" "}
+                    {new Date(location.updated_at).toLocaleString()}
+                  </ThemedText>
+                </View>
+              </Callout>
             </Marker>
           );
         })}
@@ -579,16 +691,43 @@ export default function MapScreen() {
             )}\nLongitude: ${tappedMarker.longitude.toFixed(6)}`}
           </ThemedText>
 
+          {isLocationBeingShared() && isTappedMarkerUserLocation() && (
+            <View style={styles.sharingStatusContainer}>
+              <Ionicons
+                name="share-social"
+                size={20}
+                color={isDarkMode ? "#00C853" : "#00C853"}
+              />
+              <ThemedText style={styles.sharingStatusText}>
+                Being shared with {friendsImSharingWith.length} friend
+                {friendsImSharingWith.length === 1 ? "" : "s"}
+              </ThemedText>
+            </View>
+          )}
+
           <View style={styles.cardButtonContainer}>
             <TouchableOpacity
               style={[styles.cardButton, styles.calloutButtonPrimary]}
               onPress={async () => {
-                await updateMyLocation(
-                  tappedMarker.latitude,
-                  tappedMarker.longitude,
-                  "My Selected Location"
-                );
-                Alert.alert("Success", "Your location has been updated!");
+                try {
+                  // Update location in the database
+                  await updateMyLocation(
+                    tappedMarker.latitude,
+                    tappedMarker.longitude,
+                    "My Selected Location"
+                  );
+
+                  // Update the userMarker state to reflect the new location
+                  setUserMarker({
+                    latitude: tappedMarker.latitude,
+                    longitude: tappedMarker.longitude,
+                  });
+
+                  Alert.alert("Success", "Your location has been updated!");
+                } catch (error) {
+                  console.error("Error updating location:", error);
+                  Alert.alert("Error", "Failed to update your location");
+                }
               }}
             >
               <ThemedText style={styles.calloutButtonText}>
@@ -604,6 +743,17 @@ export default function MapScreen() {
                 Share Location
               </ThemedText>
             </TouchableOpacity>
+
+            {isLocationBeingShared() && isTappedMarkerUserLocation() && (
+              <TouchableOpacity
+                style={[styles.cardButton, styles.calloutButtonWarning]}
+                onPress={handleStopAllSharing}
+              >
+                <ThemedText style={styles.calloutButtonText}>
+                  Stop Sharing Location
+                </ThemedText>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[styles.cardButton, styles.calloutButtonDanger]}
@@ -673,6 +823,44 @@ export default function MapScreen() {
             <ThemedText style={styles.modalTitle}>
               Share Your Location
             </ThemedText>
+
+            {isLocationBeingShared() && (
+              <View style={styles.currentSharingContainer}>
+                <ThemedText style={styles.currentSharingTitle}>
+                  Currently sharing with:
+                </ThemedText>
+                {friends
+                  .filter((friend) =>
+                    friendsImSharingWith.includes(friend.friend_id)
+                  )
+                  .map((friend) => (
+                    <View
+                      key={friend.friend_id}
+                      style={styles.currentSharingItem}
+                    >
+                      <ThemedText style={styles.currentSharingName}>
+                        {friend.friend_name}
+                      </ThemedText>
+                      <TouchableOpacity
+                        style={styles.stopSharingButton}
+                        onPress={() => handleStopSharing(friend.friend_id)}
+                      >
+                        <ThemedText style={styles.stopSharingText}>
+                          Stop
+                        </ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                <TouchableOpacity
+                  style={styles.stopAllSharingButton}
+                  onPress={handleStopAllSharing}
+                >
+                  <ThemedText style={styles.stopSharingText}>
+                    Stop Sharing With All
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <ThemedText style={styles.modalSubtitle}>
               Choose friends to share your current location with:
@@ -959,5 +1147,64 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: "#00C853",
+  },
+  sharingStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 10,
+    backgroundColor: "rgba(0, 200, 83, 0.1)",
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0, 200, 83, 0.3)",
+  },
+  sharingStatusText: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginLeft: 8,
+    color: "#00C853",
+  },
+  calloutButtonWarning: {
+    backgroundColor: "#FF9800",
+  },
+  sharingIndicator: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#00C853",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  currentSharingContainer: {
+    marginBottom: 20,
+  },
+  currentSharingTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  currentSharingItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 5,
+  },
+  currentSharingName: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  stopAllSharingButton: {
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 4,
+    backgroundColor: "#FF6B6B",
   },
 });
