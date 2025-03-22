@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -64,12 +65,20 @@ export default function SignInScreen() {
     >
       <StatusBar style="auto" />
       <ThemedView style={styles.innerContainer}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        >
+          <Ionicons name="arrow-back" size={30} color="#A1CEDC" />
+        </TouchableOpacity>
+
         <View style={styles.headerContainer}>
           <ThemedText type="title" style={styles.title}>
             Sign In
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            Sign in to your Ping Friends account
+            Sign in to your Walking Up account
           </ThemedText>
         </View>
 
@@ -126,9 +135,11 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginTop: 40,
+    marginBottom: 15,
+    alignSelf: "flex-start",
+    padding: 5,
   },
   headerContainer: {
-    marginTop: 20,
     marginBottom: 40,
   },
   title: {
