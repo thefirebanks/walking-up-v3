@@ -2,14 +2,9 @@ import 'react-native-url-polyfill/auto';
 import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';
 
-// Use environment variables for Supabase credentials
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
-
-// Validate that environment variables are set
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Check your .env file.');
-}
+// Hardcoded Supabase credentials for simplicity
+const supabaseUrl = 'https://fasrlqhjwmzxzqwivkla.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhc3JscWhqd216eHpxd2l2a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2MzI1NzAsImV4cCI6MjA1ODIwODU3MH0.uly3Ihq8r0gfnmNC7SoribSNxQY4bulgyQRV79aytio';
 
 // SecureStore adapter for Supabase
 const ExpoSecureStoreAdapter = {
