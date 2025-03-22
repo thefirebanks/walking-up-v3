@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Image,
   StyleSheet,
@@ -67,7 +67,7 @@ export default function ProfileScreen() {
             Welcome, {user?.email?.split("@")[0] || "Friend"}!
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            Ready to ping your friends?
+            Manage your account settings
           </ThemedText>
         </ThemedView>
 
@@ -108,27 +108,6 @@ export default function ProfileScreen() {
               onPress={handleLocationPing}
             >
               <Text style={styles.buttonText}>Share My Location</Text>
-            </TouchableOpacity>
-          </ThemedView>
-        </ThemedView>
-
-        <ThemedView style={styles.cardContainer}>
-          <ThemedText type="subtitle">My Friends</ThemedText>
-          <ThemedView style={styles.card}>
-            <ThemedText>
-              You haven't added any friends yet. Start by adding friends using
-              their email address.
-            </ThemedText>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Friend management will be available in the next update!"
-                )
-              }
-            >
-              <Text style={styles.buttonText}>Add Friends</Text>
             </TouchableOpacity>
           </ThemedView>
         </ThemedView>

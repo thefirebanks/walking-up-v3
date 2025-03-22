@@ -9,7 +9,8 @@ type AuthContextType = {
   loading: boolean;
   signUp: (
     email: string,
-    password: string
+    password: string,
+    fullName: string
   ) => Promise<{
     error: Error | null;
     data: { user: User | null; session: Session | null } | null;
@@ -65,11 +66,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Sign up function
-  const signUp = async (email: string, password: string) => {
-    return await supabase.auth.signUp({
+  const signUp = async (email: string, password: string, fullName: string) => {
+    // Sign up the user in auth
+    const authResponse = await supabase.auth.signUp({
       email,
       password,
     });
+
+    // If sign up was successful and we have a user
+    if (authResponse.data.user && !authResponse.error) {
+      // Create the profile in the profiles table
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authResponse.data.user.id,
+        email: email,
+        full_name: fullName,
+        avatar_url: null,
+      });
+
+      // If there was an error creating the profile
+      if (profileError) {
+        console.error("Error creating user profile:", profileError);
+        // You might want to handle this error - potentially cleaning up the auth user
+        // or showing an error to the user
+      }
+    }
+
+    return authResponse;
   };
 
   // Sign in function
