@@ -14,19 +14,10 @@ import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useAuth } from "@/context/AuthContext";
-import AddFriend from "@/components/AddFriend";
-import FriendRequests from "@/components/FriendRequests";
-import OutgoingFriendRequests from "@/components/OutgoingFriendRequests";
-import FriendsList from "@/components/FriendsList";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  const handleRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1);
-  };
 
   const handleLocationPing = () => {
     Alert.alert(
@@ -76,7 +67,7 @@ export default function ProfileScreen() {
             Welcome, {user?.email?.split("@")[0] || "Friend"}!
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            Ready to ping your friends?
+            Manage your account settings
           </ThemedText>
         </ThemedView>
 
@@ -104,24 +95,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </ThemedView>
         </ThemedView>
-
-        {/* Add Friends Component */}
-        <AddFriend onFriendAdded={handleRefresh} />
-
-        {/* Friend Requests Component */}
-        <FriendRequests
-          onRequestHandled={handleRefresh}
-          refreshTrigger={refreshTrigger}
-        />
-
-        {/* Outgoing Friend Requests Component */}
-        <OutgoingFriendRequests
-          refreshTrigger={refreshTrigger}
-          onRequestCanceled={handleRefresh}
-        />
-
-        {/* Friends List Component */}
-        <FriendsList refreshTrigger={refreshTrigger} />
 
         <ThemedView style={styles.cardContainer}>
           <ThemedText type="subtitle">Share Your Location</ThemedText>

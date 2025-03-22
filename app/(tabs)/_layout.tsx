@@ -1,10 +1,16 @@
-import { Tabs, Redirect } from "expo-router";
-import React from "react";
+import { Tabs } from "expo-router";
+import { useColorScheme } from "react-native";
+import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { Colors } from "@/constants/Colors";
 import { useAuth } from "@/context/AuthContext";
 
+/**
+ * TabLayout component is responsible for generating the tab navigation layout
+ * for the application. This includes setting up the tab bar, tab buttons, and
+ * configuring how screens are displayed.
+ */
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { user } = useAuth();
@@ -12,38 +18,52 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
-        // Show tab bar only for authenticated users
-        tabBarStyle: user ? undefined : { display: "none" },
+        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarStyle: {
+          // Add shadow for iOS
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          // Add elevation for Android
+          elevation: 5,
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "home-sharp" : "home-outline"}
-              color={color}
-              size={24}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <FontAwesome5 name="home" size={size} color={color} />
           ),
+          headerShown: false,
+          href: user ? undefined : null,
         }}
       />
+
+      <Tabs.Screen
+        name="friends"
+        options={{
+          title: "Friends",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="people" size={size} color={color} />
+          ),
+          headerShown: false,
+          href: user ? undefined : null,
+        }}
+      />
+
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "person-circle" : "person-circle-outline"}
-              color={color}
-              size={24}
-            />
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <FontAwesome5 name="user-circle" size={size} color={color} />
           ),
+          href: user ? undefined : null,
         }}
-        // Redirect to sign-in if trying to access profile while not authenticated
-        redirect={!user}
       />
     </Tabs>
   );
