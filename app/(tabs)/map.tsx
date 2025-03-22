@@ -177,6 +177,7 @@ export default function MapScreen() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const [showSharingDetailsModal, setShowSharingDetailsModal] = useState(false);
 
   // Load user's location and set up a real-time subscription to location changes
   useEffect(() => {
@@ -531,6 +532,13 @@ export default function MapScreen() {
         "My Selected Location"
       )
         .then(() => {
+          // Update the userMarker state to reflect this location
+          // This ensures the blue user marker updates on the map
+          setUserMarker({
+            latitude: tappedMarker.latitude,
+            longitude: tappedMarker.longitude,
+          });
+
           setShowFriendsModal(true);
         })
         .catch((error) => {
@@ -582,6 +590,21 @@ export default function MapScreen() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  // Add a function to show the sharing details modal
+  const showSharingDetails = () => {
+    setShowSharingDetailsModal(true);
+  };
+
+  // First, add a function to check if the tapped marker is different from the current user marker
+  const isTappedMarkerDifferentFromUserMarker = () => {
+    return (
+      userMarker &&
+      tappedMarker &&
+      (Math.abs(tappedMarker.latitude - userMarker.latitude) > 0.0000001 ||
+        Math.abs(tappedMarker.longitude - userMarker.longitude) > 0.0000001)
+    );
   };
 
   return (
@@ -754,7 +777,10 @@ export default function MapScreen() {
               </ThemedText>
 
               {isLocationBeingShared() && isTappedMarkerUserLocation() && (
-                <View style={styles.sharingStatusContainer}>
+                <TouchableOpacity
+                  style={styles.sharingStatusContainer}
+                  onPress={showSharingDetails}
+                >
                   <Ionicons
                     name="share-social"
                     size={20}
@@ -764,7 +790,13 @@ export default function MapScreen() {
                     Being shared with {friendsImSharingWith.length} friend
                     {friendsImSharingWith.length === 1 ? "" : "s"}
                   </ThemedText>
-                </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={isDarkMode ? "#00C853" : "#00C853"}
+                    style={{ marginLeft: 5 }}
+                  />
+                </TouchableOpacity>
               )}
 
               <View style={styles.cardButtonContainer}>
@@ -931,46 +963,50 @@ export default function MapScreen() {
               Share Your Location
             </ThemedText>
 
-            {isLocationBeingShared() && (
-              <View style={styles.currentSharingContainer}>
-                <ThemedText style={styles.currentSharingTitle}>
-                  Currently sharing with:
-                </ThemedText>
-                {friends
-                  .filter((friend) =>
-                    friendsImSharingWith.includes(friend.friend_id)
-                  )
-                  .map((friend) => (
-                    <View
-                      key={friend.friend_id}
-                      style={styles.currentSharingItem}
-                    >
-                      <ThemedText style={styles.currentSharingName}>
-                        {friend.friend_name}
-                      </ThemedText>
-                      <TouchableOpacity
-                        style={styles.stopSharingButton}
-                        onPress={() => handleStopSharing(friend.friend_id)}
-                      >
-                        <ThemedText style={styles.stopSharingText}>
-                          Stop
-                        </ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                <TouchableOpacity
-                  style={styles.stopAllSharingButton}
-                  onPress={handleStopAllSharing}
-                >
-                  <ThemedText style={styles.stopSharingText}>
-                    Stop Sharing With All
+            {/* Only show the current sharing section if we're updating the same location */}
+            {isLocationBeingShared() &&
+              !isTappedMarkerDifferentFromUserMarker() && (
+                <View style={styles.currentSharingContainer}>
+                  <ThemedText style={styles.currentSharingTitle}>
+                    Currently sharing with:
                   </ThemedText>
-                </TouchableOpacity>
-              </View>
-            )}
+                  {friends
+                    .filter((friend) =>
+                      friendsImSharingWith.includes(friend.friend_id)
+                    )
+                    .map((friend) => (
+                      <View
+                        key={friend.friend_id}
+                        style={styles.currentSharingItem}
+                      >
+                        <ThemedText style={styles.currentSharingName}>
+                          {friend.friend_name}
+                        </ThemedText>
+                        <TouchableOpacity
+                          style={styles.stopSharingButton}
+                          onPress={() => handleStopSharing(friend.friend_id)}
+                        >
+                          <ThemedText style={styles.stopSharingText}>
+                            Stop
+                          </ThemedText>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  <TouchableOpacity
+                    style={styles.stopAllSharingButton}
+                    onPress={handleStopAllSharing}
+                  >
+                    <ThemedText style={styles.stopSharingText}>
+                      Stop Sharing With All
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+              )}
 
             <ThemedText style={styles.modalSubtitle}>
-              Choose friends to share your current location with:
+              {isTappedMarkerDifferentFromUserMarker()
+                ? "Choose friends to share your new location with:"
+                : "Choose friends to share your current location with:"}
             </ThemedText>
 
             {loadingFriends ? (
@@ -996,6 +1032,107 @@ export default function MapScreen() {
             <TouchableOpacity
               style={styles.closeModalButton}
               onPress={() => setShowFriendsModal(false)}
+            >
+              <ThemedText style={styles.closeModalButtonText}>Close</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sharing details modal */}
+      <Modal
+        visible={showSharingDetailsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowSharingDetailsModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View
+            style={[
+              styles.modalContent,
+              isDarkMode ? styles.darkModalContent : styles.lightModalContent,
+            ]}
+          >
+            <View style={styles.sharingDetailsHeader}>
+              <View style={styles.sharingDetailsIcon}>
+                <Ionicons name="share-social" size={24} color="#00C853" />
+              </View>
+              <ThemedText style={styles.modalTitle}>
+                Friends Seeing Your Location
+              </ThemedText>
+            </View>
+
+            {loadingFriends ? (
+              <ActivityIndicator
+                size="large"
+                color={isDarkMode ? "#A1CEDC" : "#1D3D47"}
+                style={{ marginVertical: 20 }}
+              />
+            ) : (
+              <>
+                {friends
+                  .filter((friend) =>
+                    friendsImSharingWith.includes(friend.friend_id)
+                  )
+                  .map((friend) => (
+                    <View
+                      key={friend.friend_id}
+                      style={styles.currentSharingItem}
+                    >
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
+                        <Ionicons
+                          name="person-circle-outline"
+                          size={24}
+                          color={isDarkMode ? "#ccc" : "#666"}
+                          style={{ marginRight: 10 }}
+                        />
+                        <ThemedText style={styles.currentSharingName}>
+                          {friend.friend_name}
+                        </ThemedText>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.stopSharingButton}
+                        onPress={() => {
+                          handleStopSharing(friend.friend_id);
+                          if (friendsImSharingWith.length <= 1) {
+                            setShowSharingDetailsModal(false);
+                          }
+                        }}
+                      >
+                        <ThemedText style={styles.stopSharingText}>
+                          Stop
+                        </ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+
+                {friendsImSharingWith.length === 0 && (
+                  <ThemedText style={styles.noFriendsText}>
+                    You're not sharing your location with any friends.
+                  </ThemedText>
+                )}
+
+                {friendsImSharingWith.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.stopAllSharingButton}
+                    onPress={() => {
+                      handleStopAllSharing();
+                      setShowSharingDetailsModal(false);
+                    }}
+                  >
+                    <ThemedText style={styles.stopSharingText}>
+                      Stop Sharing With All
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.closeModalButton}
+              onPress={() => setShowSharingDetailsModal(false)}
             >
               <ThemedText style={styles.closeModalButtonText}>Close</ThemedText>
             </TouchableOpacity>
@@ -1130,9 +1267,14 @@ const styles = StyleSheet.create({
   closeModalButton: {
     marginTop: 20,
     paddingVertical: 12,
-    borderRadius: 5,
+    borderRadius: 10,
     backgroundColor: "#1D3D47",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   closeModalButtonText: {
     color: "#fff",
@@ -1269,12 +1411,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(0, 200, 83, 0.3)",
+    shadowColor: "#00C853",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sharingStatusText: {
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 8,
     color: "#00C853",
+    flex: 1,
   },
   calloutButtonWarning: {
     backgroundColor: "#FF9800",
@@ -1304,10 +1452,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 5,
+    marginBottom: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.03)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.05)",
   },
   currentSharingName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "500",
   },
   stopAllSharingButton: {
@@ -1370,5 +1524,23 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  sharingDetailsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 200, 83, 0.3)",
+  },
+  sharingDetailsIcon: {
+    backgroundColor: "rgba(0, 200, 83, 0.1)",
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
   },
 });
