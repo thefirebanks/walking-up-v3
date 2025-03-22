@@ -280,3 +280,33 @@ export const getFriendsImSharingWith = async (): Promise<string[]> => {
     return [];
   }
 };
+
+/**
+ * Gets the current user's saved location from the database
+ * @returns The user's location or null if not found
+ */
+export const getSavedUserLocation = async (): Promise<{latitude: number, longitude: number, location_name?: string} | null> => {
+  try {
+    const { data: currentUser } = await supabase.auth.getUser();
+    
+    if (!currentUser.user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { data, error } = await supabase
+      .from('user_locations')
+      .select('latitude, longitude, location_name')
+      .eq('user_id', currentUser.user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error getting user location:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getSavedUserLocation:', error);
+    return null;
+  }
+};

@@ -32,6 +32,7 @@ import {
   getLocationsSharedWithMe,
   stopSharingWithFriend,
   getFriendsImSharingWith,
+  getSavedUserLocation,
 } from "@/lib/locations";
 import { Colors } from "@/constants/Colors";
 import { supabase } from "@/lib/supabase";
@@ -156,6 +157,8 @@ export default function MapScreen() {
   const [tappedMarker, setTappedMarker] = useState<{
     latitude: number;
     longitude: number;
+    type?: "user" | "selected" | "shared";
+    sharedLocationData?: SharedLocationView;
   } | null>(null);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -183,54 +186,67 @@ export default function MapScreen() {
         return;
       }
 
-      // Get the initial location
-      let initialLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
-      });
-      setLocation(initialLocation);
+      try {
+        // First, check if the user has a previously saved/shared location in the database
+        // This needs to be added to the locations.ts lib file
+        const savedLocation = await getSavedUserLocation();
 
-      // Set the user marker
-      if (initialLocation) {
-        setUserMarker({
-          latitude: initialLocation.coords.latitude,
-          longitude: initialLocation.coords.longitude,
+        // Get the initial physical device location (just for awareness of where the user is)
+        let deviceLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Highest,
         });
 
-        // Update my location in the database
-        await updateMyLocation(
-          initialLocation.coords.latitude,
-          initialLocation.coords.longitude
-        );
-      }
+        // Update the device location state
+        setLocation(deviceLocation);
 
-      // Watch for location changes
-      const locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          distanceInterval: 10, // update every 10 meters
-          timeInterval: 5000, // update every 5 seconds
-        },
-        async (newLocation) => {
-          setLocation(newLocation);
-          if (newLocation) {
-            setUserMarker({
-              latitude: newLocation.coords.latitude,
-              longitude: newLocation.coords.longitude,
-            });
+        if (savedLocation) {
+          // If the user has a previously saved location, use that as the user marker
+          // but don't update the database - preserve the user's chosen location
+          setUserMarker({
+            latitude: savedLocation.latitude,
+            longitude: savedLocation.longitude,
+          });
+        } else {
+          // Only if the user doesn't have a saved location, use the device location
+          // as the initial user marker and update the database
+          setUserMarker({
+            latitude: deviceLocation.coords.latitude,
+            longitude: deviceLocation.coords.longitude,
+          });
 
-            // Update my location in the database when it changes
-            await updateMyLocation(
-              newLocation.coords.latitude,
-              newLocation.coords.longitude
-            );
-          }
+          // Only update the database if there's no previously saved location
+          await updateMyLocation(
+            deviceLocation.coords.latitude,
+            deviceLocation.coords.longitude
+          );
         }
-      );
 
-      // Clean up the location subscription when the component unmounts
-      return () => {
-        locationSubscription.remove();
-      };
+        // Watch for physical device location changes (for map awareness only)
+        const locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 10, // update every 10 meters
+            timeInterval: 5000, // update every 5 seconds
+          },
+          (newLocation) => {
+            // Only update the device location state (for map awareness)
+            // This is just to know where the device is physically located
+            setLocation(newLocation);
+
+            // We intentionally DO NOT update the userMarker or database here
+            // The user marker position should only be updated when the user
+            // explicitly chooses "Set as My Location" from the map interface
+          }
+        );
+
+        // Clean up the location subscription when the component unmounts
+        return () => {
+          locationSubscription.remove();
+        };
+      } catch (error) {
+        console.error("Error in location setup:", error);
+        setErrorMsg("Error setting up location services");
+      }
     })();
   }, []);
 
@@ -417,6 +433,7 @@ export default function MapScreen() {
         accuracy: Location.Accuracy.High,
       });
 
+      // Just update the local device location state - don't update userMarker
       setLocation(currentLocation);
 
       // Create a new region object
@@ -427,20 +444,12 @@ export default function MapScreen() {
         longitudeDelta: 0.005,
       };
 
-      // Update the marker
-      setUserMarker({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-
-      // Update my location in the database
-      await updateMyLocation(
-        currentLocation.coords.latitude,
-        currentLocation.coords.longitude
-      );
-
       // Animate to the new region
       mapRef.current?.animateToRegion(newRegion, 1000);
+
+      // Do NOT update the userMarker or database location
+      // The userMarker should only be updated when the user explicitly
+      // clicks "Set as My Location" after selecting a point on the map
     } catch (error) {
       console.error("Error getting location:", error);
       Alert.alert(
@@ -459,6 +468,7 @@ export default function MapScreen() {
     setTappedMarker({
       latitude: coordinate.latitude,
       longitude: coordinate.longitude,
+      type: "selected",
     });
 
     // Check if this is the user's current location marker
@@ -466,6 +476,15 @@ export default function MapScreen() {
       userMarker &&
       Math.abs(coordinate.latitude - userMarker.latitude) < 0.0000001 &&
       Math.abs(coordinate.longitude - userMarker.longitude) < 0.0000001;
+
+    // If it's the user's marker, update the type
+    if (isUserMarker) {
+      setTappedMarker({
+        latitude: coordinate.latitude,
+        longitude: coordinate.longitude,
+        type: "user",
+      });
+    }
 
     // Only animate to the region if it's not the user's current location marker
     if (!isUserMarker) {
@@ -526,8 +545,9 @@ export default function MapScreen() {
     return (
       userMarker &&
       tappedMarker &&
-      Math.abs(tappedMarker.latitude - userMarker.latitude) < 0.0000001 &&
-      Math.abs(tappedMarker.longitude - userMarker.longitude) < 0.0000001
+      (tappedMarker.type === "user" ||
+        (Math.abs(tappedMarker.latitude - userMarker.latitude) < 0.0000001 &&
+          Math.abs(tappedMarker.longitude - userMarker.longitude) < 0.0000001))
     );
   };
 
@@ -588,6 +608,7 @@ export default function MapScreen() {
               setTappedMarker({
                 latitude: userMarker.latitude,
                 longitude: userMarker.longitude,
+                type: "user",
               });
               // No need to animate here as per user's request
             }}
@@ -603,7 +624,7 @@ export default function MapScreen() {
           </Marker>
         )}
 
-        {tappedMarker && (
+        {tappedMarker && tappedMarker.type === "selected" && (
           <Marker
             coordinate={tappedMarker}
             title="Selected Location"
@@ -632,6 +653,8 @@ export default function MapScreen() {
                 setTappedMarker({
                   latitude: location.latitude,
                   longitude: location.longitude,
+                  type: "shared",
+                  sharedLocationData: location,
                 });
 
                 // Animate to the region for friend markers
@@ -684,86 +707,120 @@ export default function MapScreen() {
             isDarkMode ? styles.darkCard : styles.lightCard,
           ]}
         >
-          <ThemedText style={styles.cardTitle}>Selected Location</ThemedText>
-          <ThemedText style={styles.cardText}>
-            {`Latitude: ${tappedMarker.latitude.toFixed(
-              6
-            )}\nLongitude: ${tappedMarker.longitude.toFixed(6)}`}
-          </ThemedText>
-
-          {isLocationBeingShared() && isTappedMarkerUserLocation() && (
-            <View style={styles.sharingStatusContainer}>
-              <Ionicons
-                name="share-social"
-                size={20}
-                color={isDarkMode ? "#00C853" : "#00C853"}
-              />
-              <ThemedText style={styles.sharingStatusText}>
-                Being shared with {friendsImSharingWith.length} friend
-                {friendsImSharingWith.length === 1 ? "" : "s"}
+          {tappedMarker.type === "shared" && tappedMarker.sharedLocationData ? (
+            // Display shared location information
+            <>
+              <ThemedText style={styles.cardTitle}>
+                {tappedMarker.sharedLocationData.sender_email}'s Location
               </ThemedText>
-            </View>
+              <ThemedText style={styles.cardText}>
+                {tappedMarker.sharedLocationData.location_name ||
+                  "Shared Location"}
+              </ThemedText>
+              <ThemedText style={styles.cardText}>
+                Last updated:{" "}
+                {new Date(
+                  tappedMarker.sharedLocationData.updated_at
+                ).toLocaleString()}
+              </ThemedText>
+              <View style={styles.cardButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.cardButton, styles.calloutButtonDanger]}
+                  onPress={() => clearTappedMarker()}
+                >
+                  <ThemedText style={styles.calloutButtonText}>
+                    Close
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            // Display regular marker options
+            <>
+              <ThemedText style={styles.cardTitle}>
+                Selected Location
+              </ThemedText>
+              <ThemedText style={styles.cardText}>
+                {`Latitude: ${tappedMarker.latitude.toFixed(
+                  6
+                )}\nLongitude: ${tappedMarker.longitude.toFixed(6)}`}
+              </ThemedText>
+
+              {isLocationBeingShared() && isTappedMarkerUserLocation() && (
+                <View style={styles.sharingStatusContainer}>
+                  <Ionicons
+                    name="share-social"
+                    size={20}
+                    color={isDarkMode ? "#00C853" : "#00C853"}
+                  />
+                  <ThemedText style={styles.sharingStatusText}>
+                    Being shared with {friendsImSharingWith.length} friend
+                    {friendsImSharingWith.length === 1 ? "" : "s"}
+                  </ThemedText>
+                </View>
+              )}
+
+              <View style={styles.cardButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.cardButton, styles.calloutButtonPrimary]}
+                  onPress={async () => {
+                    try {
+                      // Update location in the database
+                      await updateMyLocation(
+                        tappedMarker.latitude,
+                        tappedMarker.longitude,
+                        "My Selected Location"
+                      );
+
+                      // Update the userMarker state to reflect the new location
+                      setUserMarker({
+                        latitude: tappedMarker.latitude,
+                        longitude: tappedMarker.longitude,
+                      });
+
+                      Alert.alert("Success", "Your location has been updated!");
+                    } catch (error) {
+                      console.error("Error updating location:", error);
+                      Alert.alert("Error", "Failed to update your location");
+                    }
+                  }}
+                >
+                  <ThemedText style={styles.calloutButtonText}>
+                    Set as My Location
+                  </ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.cardButton, styles.calloutButtonSuccess]}
+                  onPress={showShareLocationModal}
+                >
+                  <ThemedText style={styles.calloutButtonText}>
+                    Share Location
+                  </ThemedText>
+                </TouchableOpacity>
+
+                {isLocationBeingShared() && isTappedMarkerUserLocation() && (
+                  <TouchableOpacity
+                    style={[styles.cardButton, styles.calloutButtonWarning]}
+                    onPress={handleStopAllSharing}
+                  >
+                    <ThemedText style={styles.calloutButtonText}>
+                      Stop Sharing Location
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.cardButton, styles.calloutButtonDanger]}
+                  onPress={() => clearTappedMarker()}
+                >
+                  <ThemedText style={styles.calloutButtonText}>
+                    Deselect Marker
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
-
-          <View style={styles.cardButtonContainer}>
-            <TouchableOpacity
-              style={[styles.cardButton, styles.calloutButtonPrimary]}
-              onPress={async () => {
-                try {
-                  // Update location in the database
-                  await updateMyLocation(
-                    tappedMarker.latitude,
-                    tappedMarker.longitude,
-                    "My Selected Location"
-                  );
-
-                  // Update the userMarker state to reflect the new location
-                  setUserMarker({
-                    latitude: tappedMarker.latitude,
-                    longitude: tappedMarker.longitude,
-                  });
-
-                  Alert.alert("Success", "Your location has been updated!");
-                } catch (error) {
-                  console.error("Error updating location:", error);
-                  Alert.alert("Error", "Failed to update your location");
-                }
-              }}
-            >
-              <ThemedText style={styles.calloutButtonText}>
-                Set as My Location
-              </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.cardButton, styles.calloutButtonSuccess]}
-              onPress={showShareLocationModal}
-            >
-              <ThemedText style={styles.calloutButtonText}>
-                Share Location
-              </ThemedText>
-            </TouchableOpacity>
-
-            {isLocationBeingShared() && isTappedMarkerUserLocation() && (
-              <TouchableOpacity
-                style={[styles.cardButton, styles.calloutButtonWarning]}
-                onPress={handleStopAllSharing}
-              >
-                <ThemedText style={styles.calloutButtonText}>
-                  Stop Sharing Location
-                </ThemedText>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={[styles.cardButton, styles.calloutButtonDanger]}
-              onPress={() => clearTappedMarker()}
-            >
-              <ThemedText style={styles.calloutButtonText}>
-                Deselect Marker
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
