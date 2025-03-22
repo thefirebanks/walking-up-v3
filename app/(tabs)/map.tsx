@@ -192,6 +192,7 @@ export default function MapScreen() {
   // Animation for timestamp ripple effect
   const rippleAnim = useRef(new Animated.Value(0.6)).current;
   // Animation for switching between running and squatting
+  const isRunningRef = useRef(true);
   const [isRunning, setIsRunning] = useState(true);
   // Animation for shadow effect on drop
   const shadowAnim = useRef(new Animated.Value(0)).current;
@@ -771,44 +772,63 @@ export default function MapScreen() {
               setIsRunning((prev) => !prev);
             }}
           >
-            <View
+            <Animated.View
               style={{
-                width: 32,
-                height: 32,
-                backgroundColor: "#4285F4",
-                borderRadius: 22,
-                borderWidth: 3,
-                borderColor: "#fff",
+                transform: [{ scale: pulseAnim }],
+                backgroundColor: "rgba(66, 133, 244, 0.2)",
+                borderRadius: 25,
+                borderWidth: 1,
+                borderColor: "rgba(66, 133, 244, 0.5)",
+                width: 50,
+                height: 50,
                 justifyContent: "center",
                 alignItems: "center",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-                elevation: 5,
               }}
             >
-              <MaterialIcons name="directions-run" size={22} color="#fff" />
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: "#4285F4",
+                  borderColor: "#fff",
+                  borderWidth: 2,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  elevation: 4,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.23,
+                  shadowRadius: 2.62,
+                }}
+              >
+                <MaterialIcons
+                  name={isRunning ? "directions-run" : "accessibility"}
+                  size={20}
+                  color="#fff"
+                />
+              </View>
               {isLocationBeingShared() && (
                 <View
                   style={{
                     position: "absolute",
-                    top: -6,
-                    right: -6,
+                    top: 0,
+                    right: 0,
+                    backgroundColor: "#00C853",
                     width: 16,
                     height: 16,
                     borderRadius: 8,
-                    backgroundColor: "#00C853",
-                    borderColor: "#fff",
                     borderWidth: 1.5,
+                    borderColor: "#fff",
                     justifyContent: "center",
                     alignItems: "center",
+                    elevation: 3,
                   }}
                 >
                   <Ionicons name="share-social" size={8} color="#fff" />
                 </View>
               )}
-            </View>
+            </Animated.View>
           </Marker>
         )}
 
@@ -817,38 +837,33 @@ export default function MapScreen() {
             coordinate={tappedMarker}
             title="Selected Location"
             description="Tap for options"
-            anchor={{ x: 0.5, y: 0.5 }}
+            anchor={{ x: 0.5, y: 1.0 }}
           >
-            <View
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
+            <View style={{ alignItems: "center" }}>
               <View
                 style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 20,
+                  width: 24,
+                  height: 24,
+                  borderRadius: 12,
                   backgroundColor: "#FF6B6B",
                   borderColor: "#fff",
-                  borderWidth: 2.5,
+                  borderWidth: 2,
+                  elevation: 4,
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
-                  elevation: 3,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.23,
+                  shadowRadius: 2.62,
                 }}
               />
               <View
                 style={{
-                  width: 18,
-                  height: 18,
+                  width: 12,
+                  height: 12,
                   backgroundColor: "#FF6B6B",
                   transform: [{ rotate: "45deg" }],
-                  marginTop: -9,
-                  borderBottomWidth: 2.5,
-                  borderRightWidth: 2.5,
+                  marginTop: -6,
+                  borderBottomWidth: 2,
+                  borderRightWidth: 2,
                   borderColor: "#fff",
                 }}
               />
@@ -891,50 +906,70 @@ export default function MapScreen() {
                 );
               }}
             >
-              <View
+              <Animated.View
                 style={{
-                  width: 40,
-                  height: 40,
-                  backgroundColor: "#00C853",
-                  borderRadius: 20,
-                  borderColor: "#fff",
-                  borderWidth: 2.5,
+                  transform: [
+                    {
+                      translateY: floatAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -5],
+                      }),
+                    },
+                  ],
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
                   justifyContent: "center",
                   alignItems: "center",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
-                  elevation: 3,
                 }}
               >
-                <Text
-                  style={{
-                    color: "#fff",
-                    fontSize: 16,
-                    fontWeight: "bold",
-                  }}
-                >
-                  {initials}
-                </Text>
                 <View
                   style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: "#00C853",
+                    borderColor: "#fff",
+                    borderWidth: 2,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    elevation: 4,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.23,
+                    shadowRadius: 2.62,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {initials}
+                  </Text>
+                </View>
+                <Animated.View
+                  style={{
                     position: "absolute",
-                    bottom: -6,
-                    right: -6,
+                    bottom: 0,
+                    right: 0,
+                    backgroundColor: "#FF9800",
                     width: 16,
                     height: 16,
                     borderRadius: 8,
-                    backgroundColor: "#FF9800",
-                    borderColor: "#fff",
                     borderWidth: 1.5,
+                    borderColor: "#fff",
                     justifyContent: "center",
                     alignItems: "center",
+                    transform: [{ scale: rippleAnim }],
+                    elevation: 3,
                   }}
                 >
-                  <Ionicons name="location" size={8} color="#fff" />
-                </View>
-              </View>
+                  <Ionicons name="time-outline" size={8} color="#fff" />
+                </Animated.View>
+              </Animated.View>
             </Marker>
           );
         })}
