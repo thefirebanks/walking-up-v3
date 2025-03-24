@@ -16,6 +16,7 @@ export type LocationShare = {
   created_at: string;
 };
 
+// TODO: Should this have the name of the sender?
 export type SharedLocationView = {
   sender_id: string;
   latitude: number;

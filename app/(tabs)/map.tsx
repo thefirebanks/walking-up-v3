@@ -168,8 +168,10 @@ export default function MapScreen() {
   const [sharedLocations, setSharedLocations] = useState<SharedLocationView[]>(
     []
   );
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshSuccess, setRefreshSuccess] = useState(false);
+  const [refreshingLocationShares, setRefreshingLocationShares] =
+    useState(false);
+  const [refreshingLocationSharesSuccess, setRefreshingLocationSharesSuccess] =
+    useState(false);
   const [friendsImSharingWith, setFriendsImSharingWith] = useState<string[]>(
     []
   );
@@ -191,8 +193,6 @@ export default function MapScreen() {
   const floatAnim = useRef(new Animated.Value(0)).current;
   // Animation for timestamp ripple effect
   const rippleAnim = useRef(new Animated.Value(0.6)).current;
-  // Animation for switching between running and squatting
-  const isRunningRef = useRef(true);
   const [isRunning, setIsRunning] = useState(true);
   // Animation for shadow effect on drop
   const shadowAnim = useRef(new Animated.Value(0)).current;
@@ -263,9 +263,12 @@ export default function MapScreen() {
     };
   }, []);
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Load user's location and set up a real-time subscription to location changes
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   useEffect(() => {
     (async () => {
+      // Ensure we have location permissions first
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permission to access location was denied");
@@ -275,7 +278,7 @@ export default function MapScreen() {
       try {
         // First, check if the user has a previously saved/shared location in the database
         // This needs to be added to the locations.ts lib file
-        const savedLocation = await getSavedUserLocation();
+        const savedLocationOnDb = await getSavedUserLocation();
 
         // Get the initial physical device location (just for awareness of where the user is)
         let deviceLocation = await Location.getCurrentPositionAsync({
@@ -285,12 +288,12 @@ export default function MapScreen() {
         // Update the device location state
         setLocation(deviceLocation);
 
-        if (savedLocation) {
+        if (savedLocationOnDb) {
           // If the user has a previously saved location, use that as the user marker
           // but don't update the database - preserve the user's chosen location
           setUserMarker({
-            latitude: savedLocation.latitude,
-            longitude: savedLocation.longitude,
+            latitude: savedLocationOnDb.latitude,
+            longitude: savedLocationOnDb.longitude,
           });
         } else {
           // Only if the user doesn't have a saved location, use the device location
@@ -301,6 +304,7 @@ export default function MapScreen() {
           });
 
           // Only update the database if there's no previously saved location
+          // TODO: Potentially add location name?
           await updateMyLocation(
             deviceLocation.coords.latitude,
             deviceLocation.coords.longitude
@@ -308,6 +312,7 @@ export default function MapScreen() {
         }
 
         // Watch for physical device location changes (for map awareness only)
+        // TODO: Check - is this locationSubscription needed??
         const locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
@@ -336,7 +341,9 @@ export default function MapScreen() {
     })();
   }, []);
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Load friends and shared locations
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   useEffect(() => {
     if (user) {
       loadFriends();
@@ -374,7 +381,9 @@ export default function MapScreen() {
     }
   }, [user]);
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Load the user's friends
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const loadFriends = async () => {
     if (!user) return;
 
@@ -390,7 +399,9 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Load locations shared with the current user
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const loadSharedLocations = async () => {
     if (!user) return;
 
@@ -402,7 +413,9 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Load the list of friends I'm sharing my location with
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const loadFriendsImSharingWith = async () => {
     if (!user) return;
 
@@ -414,7 +427,9 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Share the current location with the selected friend
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const shareLocationWithSelectedFriend = async (friend: Friend) => {
     if (!user) {
       Alert.alert("Error", "You must be logged in to share your location");
@@ -438,7 +453,9 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Stop sharing location with a friend
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const handleStopSharing = async (friendId: string) => {
     try {
       await stopSharingWithFriend(friendId);
@@ -450,32 +467,39 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Clear the tapped marker
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const clearTappedMarker = () => {
     setTappedMarker(null);
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Handle the refresh action to reload friends and shared locations
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
+    setRefreshingLocationShares(true);
     try {
+      // TODO: Do we need loadFriends() and loadSharedLocations() here??????
       await loadFriends();
       await loadSharedLocations();
       await loadFriendsImSharingWith();
 
       // Show success message briefly with updated info
-      setRefreshSuccess(true);
+      setRefreshingLocationSharesSuccess(true);
       setTimeout(() => {
-        setRefreshSuccess(false);
+        setRefreshingLocationSharesSuccess(false);
       }, 2000);
     } catch (error) {
       console.error("Error during refresh:", error);
     } finally {
-      setRefreshing(false);
+      setRefreshingLocationShares(false);
     }
   }, [user]);
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Render a friend item in the modal list
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const renderFriendItem = ({ item }: { item: Friend }) => {
     const isSharing = friendsImSharingWith.includes(item.friend_id);
 
@@ -499,7 +523,9 @@ export default function MapScreen() {
     );
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Function to center the map on user's current location
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const centerOnUserLocation = async () => {
     if (!user) {
       Alert.alert(
@@ -551,7 +577,9 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Handle map tap to place a marker with enhanced drop animation
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const handleMapPress = (event: any) => {
     // Extract the coordinates from the event
     const { coordinate } = event.nativeEvent;
@@ -631,7 +659,9 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Function to show the share location modal
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const showShareLocationModal = () => {
     if (friends.length === 0) {
       Alert.alert(
@@ -642,6 +672,9 @@ export default function MapScreen() {
       return;
     }
 
+    // TODO: Here's where we need to update the code
+    // to only update my location IFF the user has selected a friend to share it with
+    // HOWEVER, we can't just comment this out because we need to find a new place in the code to all updateMyLocation and setUserMarker.
     // First, update my location at the current marker
     if (tappedMarker) {
       updateMyLocation(
@@ -668,12 +701,16 @@ export default function MapScreen() {
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Check if user is currently sharing their location
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const isLocationBeingShared = () => {
     return friendsImSharingWith.length > 0;
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Check if the tapped marker is the user's current location
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const isTappedMarkerUserLocation = () => {
     return (
       userMarker &&
@@ -684,14 +721,16 @@ export default function MapScreen() {
     );
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Function to handle stopping all location sharing
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const handleStopAllSharing = async () => {
     try {
       // Create a copy of the array since we'll be modifying it during iteration
       const friendIds = [...friendsImSharingWith];
 
       // Show loading indicator
-      setRefreshing(true);
+      setRefreshingLocationShares(true);
 
       // Stop sharing with each friend
       for (const friendId of friendIds) {
@@ -706,16 +745,20 @@ export default function MapScreen() {
       console.error("Error stopping location sharing:", error);
       Alert.alert("Error", "Failed to stop location sharing");
     } finally {
-      setRefreshing(false);
+      setRefreshingLocationShares(false);
     }
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Add a function to show the sharing details modal
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const showSharingDetails = () => {
     setShowSharingDetailsModal(true);
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // First, add a function to check if the tapped marker is different from the current user marker
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const isTappedMarkerDifferentFromUserMarker = () => {
     return (
       userMarker &&
@@ -725,7 +768,9 @@ export default function MapScreen() {
     );
   };
 
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   // Add a function to navigate to the shared location (user marker)
+  // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   const navigateToSharedLocation = () => {
     if (userMarker) {
       mapRef.current?.animateToRegion(
@@ -975,7 +1020,7 @@ export default function MapScreen() {
         })}
       </MapView>
 
-      {/* Bottom card for marker options */}
+      {/* Bottom card for marker options when a user taps on a map location */}
       {tappedMarker && (
         <View
           style={[
@@ -983,8 +1028,8 @@ export default function MapScreen() {
             isDarkMode ? styles.darkCard : styles.lightCard,
           ]}
         >
+          {/* Display shared location information */}
           {tappedMarker.type === "shared" && tappedMarker.sharedLocationData ? (
-            // Display shared location information
             <>
               <ThemedText style={styles.cardTitle}>
                 {tappedMarker.sharedLocationData.sender_email}'s Location
@@ -1022,6 +1067,7 @@ export default function MapScreen() {
                 )}\nLongitude: ${tappedMarker.longitude.toFixed(6)}`}
               </ThemedText>
 
+              {/* When clicked, opens the sharing details modal */}
               {isLocationBeingShared() && isTappedMarkerUserLocation() && (
                 <TouchableOpacity
                   style={styles.sharingStatusContainer}
@@ -1117,7 +1163,7 @@ export default function MapScreen() {
         ]}
       >
         {/* Toast message when refreshing */}
-        {refreshing && (
+        {refreshingLocationShares && (
           <View
             style={[
               styles.toast,
@@ -1131,7 +1177,7 @@ export default function MapScreen() {
         )}
 
         {/* Success message toast */}
-        {!refreshing && refreshSuccess && (
+        {!refreshingLocationShares && refreshingLocationSharesSuccess && (
           <View style={[styles.toast, styles.successToast]}>
             <Ionicons
               name="checkmark-circle"
@@ -1144,7 +1190,7 @@ export default function MapScreen() {
                 ? `Found ${sharedLocations.length} friend location${
                     sharedLocations.length !== 1 ? "s" : ""
                   }!`
-                : "Friend locations updated!"}
+                : "Friend locations updated! No new locations found."}
             </ThemedText>
           </View>
         )}
@@ -1185,6 +1231,7 @@ export default function MapScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Show "Center on current location" button */}
           <TouchableOpacity
             style={[
               styles.controlButton,
@@ -1212,6 +1259,7 @@ export default function MapScreen() {
             </View>
           </TouchableOpacity>
 
+          {/* Show "Refresh Friend Locations" button */}
           <TouchableOpacity
             style={[
               styles.controlButton,
@@ -1219,7 +1267,7 @@ export default function MapScreen() {
               isDarkMode ? styles.darkControlButton : styles.lightControlButton,
             ]}
             onPress={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshingLocationShares}
             onLongPress={() =>
               Alert.alert(
                 "Refresh Friend Locations",
@@ -1229,7 +1277,7 @@ export default function MapScreen() {
             delayLongPress={500}
           >
             <View style={styles.refreshButtonContent}>
-              {refreshing ? (
+              {refreshingLocationShares ? (
                 <ActivityIndicator
                   size="small"
                   color={isDarkMode ? "#FF9800" : "#FF9800"}
@@ -1249,7 +1297,7 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* Friends selection modal */}
+      {/* Friends selection modal: Appears when user clicks "Share Location" after selecting a marker on the map */}
       <Modal
         visible={showFriendsModal}
         transparent={true}
@@ -1267,6 +1315,21 @@ export default function MapScreen() {
               Share Your Location
             </ThemedText>
 
+            {/* TODO 1: Check the logic on this thing - currently we have:
+             -> "Currently sharing with" section
+             -> "Choose friends to share your current location with" section
+              Actually, what we'd want is to have slightly different colors for each section or different buttons in each
+              so we'll have to diagram this down first.
+
+            TODO 2:
+             Apparently, when we click on a different map marker and then click share location, 
+             the logic sets the current marker as the new location EVEN IF WE CLOSE THE MODAL AND DONT CHOOSE ANYONE TO SHARE IT WITH
+             This could be right, or confusing - since the user could have changed their mind mid way
+             Therefore, what we want is to only set the marker as the current user location IFF the user has selected a friend to share it with
+             and clicked on the friends name. 
+            */}
+
+            {/* SECTION 1: Current Sharing */}
             {/* Only show the current sharing section if we're updating the same location */}
             {isLocationBeingShared() &&
               !isTappedMarkerDifferentFromUserMarker() && (
@@ -1307,12 +1370,15 @@ export default function MapScreen() {
                 </View>
               )}
 
+            {/* SECTION 2: Friends List */}
+            {/* Title for the friends list */}
             <ThemedText style={styles.modalSubtitle}>
               {isTappedMarkerDifferentFromUserMarker()
                 ? "Choose friends to share your new location with:"
                 : "Choose friends to share your current location with:"}
             </ThemedText>
 
+            {/* This loads the list of friends when the modal is opened, or a message if there are no friends */}
             {loadingFriends ? (
               <ActivityIndicator
                 size="large"
@@ -1333,6 +1399,7 @@ export default function MapScreen() {
               </ThemedText>
             )}
 
+            {/* Close button */}
             <TouchableOpacity
               style={styles.closeModalButton}
               onPress={() => setShowFriendsModal(false)}
@@ -1343,7 +1410,7 @@ export default function MapScreen() {
         </View>
       </Modal>
 
-      {/* Sharing details modal */}
+      {/* Sharing details modal: shows the list of friends who are currently seeing your location, appears when you click on the "Being shared with N friends" button */}
       <Modal
         visible={showSharingDetailsModal}
         transparent={true}
@@ -1357,6 +1424,7 @@ export default function MapScreen() {
               isDarkMode ? styles.darkModalContent : styles.lightModalContent,
             ]}
           >
+            {/* Header */}
             <View style={styles.sharingDetailsHeader}>
               <View style={styles.sharingDetailsIcon}>
                 <Ionicons name="share-social" size={24} color="#00C853" />
@@ -1366,6 +1434,7 @@ export default function MapScreen() {
               </ThemedText>
             </View>
 
+            {/* Friends List */}
             {loadingFriends ? (
               <ActivityIndicator
                 size="large"
@@ -1374,6 +1443,7 @@ export default function MapScreen() {
               />
             ) : (
               <>
+                {/* List of friends currently seeing your location */}
                 {friends
                   .filter((friend) =>
                     friendsImSharingWith.includes(friend.friend_id)
@@ -1383,6 +1453,7 @@ export default function MapScreen() {
                       key={friend.friend_id}
                       style={styles.currentSharingItem}
                     >
+                      {/* Friend's profile picture and name */}
                       <View
                         style={{ flexDirection: "row", alignItems: "center" }}
                       >
@@ -1396,6 +1467,8 @@ export default function MapScreen() {
                           {friend.friend_name}
                         </ThemedText>
                       </View>
+
+                      {/* Stop Sharing Button */}
                       <TouchableOpacity
                         style={styles.stopSharingButton}
                         onPress={() => {
@@ -1412,12 +1485,14 @@ export default function MapScreen() {
                     </View>
                   ))}
 
+                {/* Technically we shouldn't get here, but just in case */}
                 {friendsImSharingWith.length === 0 && (
                   <ThemedText style={styles.noFriendsText}>
                     You're not sharing your location with any friends.
                   </ThemedText>
                 )}
 
+                {/* Stop All Sharing Button */}
                 {friendsImSharingWith.length > 0 && (
                   <TouchableOpacity
                     style={styles.stopAllSharingButton}
@@ -1434,6 +1509,7 @@ export default function MapScreen() {
               </>
             )}
 
+            {/* Close Button */}
             <TouchableOpacity
               style={styles.closeModalButton}
               onPress={() => setShowSharingDetailsModal(false)}
