@@ -20,6 +20,10 @@ export default function FriendsScreen() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const navigateToMap = () => {
+    router.navigate("/map");
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
@@ -36,6 +40,13 @@ export default function FriendsScreen() {
           <ThemedText style={styles.subtitle}>
             Connect with friends and share your location
           </ThemedText>
+          <ThemedText style={styles.locationInfo}>
+            Go to the{" "}
+            <ThemedText style={styles.mapLink} onPress={navigateToMap}>
+              Map tab
+            </ThemedText>{" "}
+            to view friends' locations and share your own
+          </ThemedText>
         </ThemedView>
 
         {/* Add Friends Component */}
@@ -49,8 +60,8 @@ export default function FriendsScreen() {
 
         {/* Outgoing Friend Requests Component */}
         <OutgoingFriendRequests
-          refreshTrigger={refreshTrigger}
           onRequestCanceled={handleRefresh}
+          refreshTrigger={refreshTrigger}
         />
 
         {/* Friends List Component */}
@@ -66,18 +77,41 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   welcomeContainer: {
+    marginTop: -60,
+    padding: 24,
+    borderRadius: 12,
     marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   subtitle: {
+    marginTop: 8,
     fontSize: 16,
-    marginTop: 4,
-    marginBottom: 8,
+    textAlign: "center",
   },
   reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+    width: 40,
+    height: 40,
     position: "absolute",
+  },
+  locationInfo: {
+    fontSize: 14,
+    marginTop: 8,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  mapLink: {
+    fontSize: 14,
+    fontWeight: "bold",
+    textDecorationLine: "underline",
   },
 });
