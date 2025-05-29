@@ -62,6 +62,13 @@ export default function HomeScreen() {
                 <Text style={styles.buttonText}>Log In</Text>
               </TouchableOpacity>
             </Link>
+            <Link href="/auth/sign-in-otp" asChild>
+              <TouchableOpacity style={styles.otpButton}>
+                <ThemedText style={styles.buttonText}>
+                  Sign In with OTP
+                </ThemedText>
+              </TouchableOpacity>
+            </Link>
 
             <Link href="/auth/sign-up" asChild>
               <TouchableOpacity style={styles.signupButton}>
@@ -158,5 +165,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#FFFFFF",
+  },
+  otpButton: {
+    backgroundColor: "#FFC107",
+    borderRadius: 10,
+    paddingVertical: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });

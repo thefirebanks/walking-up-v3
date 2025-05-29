@@ -22,6 +22,17 @@ type AuthContextType = {
     error: Error | null;
     data: { user: User | null; session: Session | null } | null;
   }>;
+  signInWithOtp: (email: string) => Promise<{
+    error: Error | null;
+    data: any;
+  }>;
+  verifyOtp: (
+    email: string,
+    token: string
+  ) => Promise<{
+    error: Error | null;
+    data: { user: User | null; session: Session | null } | null;
+  }>;
   signOut: () => Promise<void>;
 };
 
@@ -102,6 +113,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
+  // Sign in with OTP function
+  const signInWithOtp = async (email: string) => {
+    return await supabase.auth.signInWithOtp({
+      email,
+    });
+  };
+
+  // Verify OTP function
+  const verifyOtp = async (email: string, token: string) => {
+    return await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+  };
+
   // Sign out function
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -109,7 +136,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signUp, signIn, signOut }}
+      value={{
+        user,
+        session,
+        loading,
+        signUp,
+        signIn,
+        signInWithOtp,
+        verifyOtp,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>
