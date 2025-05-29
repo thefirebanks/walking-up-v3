@@ -201,10 +201,13 @@ export const getLocationsSharedWithMe = async (): Promise<SharedLocationView[]> 
       return [];
     }
     
-    // Step 4: Combine the data
+    // Step 4: Build a lookup map for profiles
+    const profileMap = new Map(profiles.map(profile => [profile.id, profile]));
+    
+    // Step 5: Combine the data
     const result: SharedLocationView[] = [];
     for (const location of locations) {
-      const profile = profiles.find(p => p.id === location.user_id);
+      const profile = profileMap.get(location.user_id);
       result.push({
         sender_id: location.user_id,
         latitude: location.latitude,
