@@ -19,7 +19,13 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.dafirebanks.walkingupv3"
     },
     "web": {
       "bundler": "metro",
@@ -42,10 +48,19 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Walking Up to use your location to show you on the map and connect with nearby friends."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "5bf383fe-309e-43de-8369-66973847740a"
+      }
     }
   }
 }
