@@ -11,8 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Walking Up needs your location to show you on the map and connect with nearby friends."
-      }
+        "NSLocationWhenInUseUsageDescription": "Walking Up needs your location to show you on the map and connect with nearby friends.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.vibe-coding.walking-up"
     },
     "android": {
       "adaptiveIcon": {
