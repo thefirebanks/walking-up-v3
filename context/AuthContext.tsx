@@ -78,31 +78,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sign up function
   const signUp = async (email: string, password: string, fullName: string) => {
-    // Sign up the user in auth
-    const authResponse = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    // If sign up was successful and we have a user
-    if (authResponse.data.user && !authResponse.error) {
-      // Create the profile in the profiles table
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: authResponse.data.user.id,
-        email: email,
-        full_name: fullName,
-        avatar_url: null,
+    try {
+      const authResponse = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
       });
 
-      // If there was an error creating the profile
-      if (profileError) {
-        console.error("Error creating user profile:", profileError);
-        // You might want to handle this error - potentially cleaning up the auth user
-        // or showing an error to the user
+      if (authResponse.error) {
+        throw authResponse.error;
       }
-    }
 
-    return authResponse;
+      // Don't manually insert profile - let the database trigger handle it
+      return { data: authResponse.data, error: null };
+    } catch (error: any) {
+      console.error("Sign up error:", error);
+      return { data: null, error };
+    }
   };
 
   // Sign in function

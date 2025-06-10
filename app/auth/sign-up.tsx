@@ -54,7 +54,7 @@ export default function SignUpScreen() {
         // Skip automatic sign-in attempt and always show verification message
         Alert.alert(
           "Account Created",
-          "Your account has been created successfully. Please check your email for a verification link before signing in.",
+          "Your account has been created successfully. You can sign in now!",
           [
             {
               text: "OK",
