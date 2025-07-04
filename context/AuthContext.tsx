@@ -1,6 +1,12 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import {
+  registerForPushNotificationsAsync,
+  savePushToken,
+  subscribeToLocationShares,
+  unsubscribeFromLocationShares,
+} from "@/lib/notifications";
 
 // Define the Auth context state type
 type AuthContextType = {
@@ -44,6 +50,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notificationSubscription, setNotificationSubscription] =
+    useState<any>(null);
+
+  // Setup notifications for authenticated user
+  const setupNotifications = async (userId: string) => {
+    try {
+      // Register for local notifications (no Firebase needed)
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        // For local notifications, we don't need to save the token
+        // Just log that notifications are ready
+        console.log("📱 Local notifications ready for user:", userId);
+      }
+
+      // Subscribe to location share notifications
+      const subscription = subscribeToLocationShares(userId);
+      setNotificationSubscription(subscription);
+    } catch (error) {
+      console.error("Error setting up notifications:", error);
+    }
+  };
+
+  // Cleanup notifications
+  const cleanupNotifications = () => {
+    if (notificationSubscription) {
+      unsubscribeFromLocationShares(notificationSubscription);
+      setNotificationSubscription(null);
+    }
+  };
 
   useEffect(() => {
     // Check for a user session when the app loads
@@ -67,6 +102,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Setup or cleanup notifications based on auth state
+        if (session?.user) {
+          await setupNotifications(session.user.id);
+        } else {
+          cleanupNotifications();
+        }
       }
     );
 
@@ -127,6 +169,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sign out function
   const signOut = async () => {
+    cleanupNotifications();
     await supabase.auth.signOut();
   };
 
