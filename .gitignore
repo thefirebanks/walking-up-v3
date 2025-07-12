@@ -1,4 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# builds
+android/
+ios/
+docs/
 
 # dependencies
 node_modules/
