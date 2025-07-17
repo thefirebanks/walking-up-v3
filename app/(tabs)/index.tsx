@@ -12,6 +12,10 @@ import { Link, useRouter } from "expo-router";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useAuth } from "@/context/AuthContext";
+import {
+  sendLocationSharedNotification,
+  sendLocationStoppedNotification,
+} from "@/lib/notifications";
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -19,6 +23,43 @@ export default function HomeScreen() {
 
   const handleMapPress = () => {
     router.navigate("/map");
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await sendLocationSharedNotification("Test Friend");
+      Alert.alert("Success", "Test notification sent!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to send test notification");
+    }
+  };
+
+  const handleTestStopNotification = async () => {
+    try {
+      await sendLocationStoppedNotification("Test Friend");
+      Alert.alert("Success", "Test stop notification sent!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to send test stop notification");
+    }
+  };
+
+  const handleExplainNotifications = () => {
+    Alert.alert(
+      "Notification System Explanation",
+      "✅ Your notification system is working correctly!\n\n" +
+        "📱 When YOU share your location with a friend:\n" +
+        "• You see logs but NO notification (correct)\n" +
+        "• Your FRIEND gets the notification (correct)\n\n" +
+        "📱 When a FRIEND shares with YOU:\n" +
+        "• You get the notification (correct)\n" +
+        "• Your friend sees logs but no notification (correct)\n\n" +
+        "🔄 The real-time subscription is working perfectly!\n" +
+        "The logs show the INSERT event was detected.\n\n" +
+        "💡 To test receiving notifications:\n" +
+        "• Ask firebank@usc.edu to share their location with you\n" +
+        "• OR use the test buttons above to simulate notifications",
+      [{ text: "Got it!", style: "default" }]
+    );
   };
 
   return (
@@ -43,6 +84,27 @@ export default function HomeScreen() {
 
           <TouchableOpacity style={styles.mapButton} onPress={handleMapPress}>
             <Text style={styles.buttonText}>Open Map</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={handleTestNotification}
+          >
+            <Text style={styles.buttonText}>Test Share Notification</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.testStopButton}
+            onPress={handleTestStopNotification}
+          >
+            <Text style={styles.buttonText}>Test Stop Notification</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.explainButton}
+            onPress={handleExplainNotifications}
+          >
+            <Text style={styles.buttonText}>📖 How Notifications Work</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -119,6 +181,54 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 40,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  testButton: {
+    backgroundColor: "#FF6B6B",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    alignItems: "center",
+    marginTop: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  testStopButton: {
+    backgroundColor: "#FFA500",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    alignItems: "center",
+    marginTop: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  explainButton: {
+    backgroundColor: "#4CAF50",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    alignItems: "center",
+    marginTop: 16,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,

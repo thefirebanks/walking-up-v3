@@ -197,6 +197,25 @@ export const getFriends = async (): Promise<Friend[]> => {
   return data as Friend[];
 };
 
+// Function to get a specific friend's details by their ID
+export const getFriendById = async (friendId: string): Promise<Friend | null> => {
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .rpc('get_friends', {
+      user_id: userId
+    });
+
+  if (error) {
+    console.error('Error getting friends:', error);
+    return null;
+  }
+
+  const friend = data.find((f: Friend) => f.friend_id === friendId);
+  return friend || null;
+};
+
 // Function to update friendship status (accept or reject)
 export const updateFriendshipStatus = async (
   requestorId: string,

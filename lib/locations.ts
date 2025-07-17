@@ -95,7 +95,10 @@ export const shareLocationWithFriend = async (
   friendId: string
 ): Promise<LocationShare | null> => {
   try {
+    console.log("🔄 shareLocationWithFriend called with friendId:", friendId);
+    
     const { data: currentUser } = await supabase.auth.getUser();
+    console.log("🔄 Current user:", currentUser.user?.id);
     
     if (!currentUser.user) {
       throw new Error('User not authenticated');
@@ -107,6 +110,8 @@ export const shareLocationWithFriend = async (
       .select('*')
       .eq('user_id', currentUser.user.id)
       .maybeSingle();
+
+    console.log("🔄 My location:", myLocation);
 
     if (!myLocation) {
       throw new Error('You need to set your location before sharing');
@@ -120,8 +125,12 @@ export const shareLocationWithFriend = async (
       .eq('receiver_id', friendId)
       .maybeSingle();
 
+    console.log("🔄 Existing share:", existingShare);
+
     // If share doesn't exist, create it
     if (!existingShare) {
+      console.log("🔄 Creating new location share...");
+      
       const { data, error } = await supabase
         .from('location_shares')
         .insert({
@@ -131,17 +140,22 @@ export const shareLocationWithFriend = async (
         .select()
         .single();
 
+      console.log("🔄 Insert result - data:", data);
+      console.log("🔄 Insert result - error:", error);
+
       if (error) {
-        console.error('Error sharing location:', error);
+        console.error('❌ Error sharing location:', error);
         return null;
       }
 
+      console.log("✅ Location share created successfully:", data);
       return data as LocationShare;
     }
 
+    console.log("ℹ️ Location share already exists, returning existing:", existingShare);
     return existingShare as LocationShare;
   } catch (error) {
-    console.error('Error in shareLocationWithFriend:', error);
+    console.error('❌ Error in shareLocationWithFriend:', error);
     return null;
   }
 };
@@ -312,5 +326,35 @@ export const getSavedUserLocation = async (): Promise<{latitude: number, longitu
   } catch (error) {
     console.error('Error in getSavedUserLocation:', error);
     return null;
+  }
+};
+
+/**
+ * Gets all location shares where the current user is the receiver
+ * This is used for notifications to track which shares are deleted
+ * @returns Array of location share records
+ */
+export const getLocationSharesForUser = async (): Promise<LocationShare[]> => {
+  try {
+    const { data: currentUser } = await supabase.auth.getUser();
+    
+    if (!currentUser.user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { data: shares, error } = await supabase
+      .from('location_shares')
+      .select('*')
+      .eq('receiver_id', currentUser.user.id);
+
+    if (error) {
+      console.error('Error getting location shares:', error);
+      return [];
+    }
+
+    return shares || [];
+  } catch (error) {
+    console.error('Error in getLocationSharesForUser:', error);
+    return [];
   }
 };

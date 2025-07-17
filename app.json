@@ -59,6 +59,7 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Walking Up to use your location to show you on the map and connect with nearby friends."
         }
       ],
+
       "expo-secure-store"
     ],
     "experiments": {

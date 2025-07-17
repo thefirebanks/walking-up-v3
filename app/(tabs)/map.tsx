@@ -40,6 +40,11 @@ import { Colors } from "@/constants/Colors";
 import { supabase } from "@/lib/supabase";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import {
+  sendLocationSharedNotification,
+  sendLocationStoppedNotification,
+} from "@/lib/notifications";
+import { getFriendById } from "@/lib/friends";
 
 // Dark mode map style
 const darkMapStyle: MapStyleElement[] = [
@@ -356,7 +361,40 @@ export default function MapScreen() {
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "location_shares" },
-          (payload) => {
+          async (payload) => {
+            // Handle new location shares (when someone shares with the current user)
+            if (
+              payload.eventType === "INSERT" &&
+              payload.new.receiver_id === user.id
+            ) {
+              try {
+                // Get the sender's friend details to show their name in the notification
+                const friend = await getFriendById(payload.new.sender_id);
+                if (friend) {
+                  await sendLocationSharedNotification(friend.friend_name);
+                } else {
+                  await sendLocationSharedNotification("A friend");
+                }
+              } catch (notificationError) {
+                console.error("Error sending notification:", notificationError);
+              }
+            }
+
+            // Handle when someone stops sharing with the current user
+            // Note: DELETE events only include the record ID, so we show a generic message
+            if (payload.eventType === "DELETE") {
+              try {
+                // Since we can't get the specific friend name from DELETE events,
+                // we'll show a generic notification
+                await sendLocationStoppedNotification("Someone");
+              } catch (notificationError) {
+                console.error(
+                  "Error sending stop notification:",
+                  notificationError
+                );
+              }
+            }
+
             loadSharedLocations();
             loadFriendsImSharingWith();
           }
